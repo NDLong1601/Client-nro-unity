@@ -1,0 +1,17 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1045 &1
+EditorBuildSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Scenes:
+  - enabled: 0
+    path: Assets/Scenes/Nro1.unity
+    guid: 2cda990e2423bbf4892e6590ba056729
+  - enabled: 0
+    path: Assets/Scenes/NRO2.unity
+    guid: 9c2d00f4c6a78db4a89c112ce6b4a9b7
+  - enabled: 0
+    path: Assets/Scenes/NROL.unity
+    guid: 49fd341ce20015241a99ee4d8be2b71d
+  m_configObjects: {}

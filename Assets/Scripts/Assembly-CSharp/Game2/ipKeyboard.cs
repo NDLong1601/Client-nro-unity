@@ -1,0 +1,45 @@
+using System;
+using UnityEngine;
+
+namespace Game2
+{
+	public class ipKeyboard
+	{
+		private static TouchScreenKeyboard tk;
+
+		public static int TEXT;
+
+		public static int NUMBERIC = 1;
+
+		public static int PASS = 2;
+
+		private static Command act;
+
+		public static void openKeyBoard(string caption, int type, string text, Command action)
+		{
+			act = action;
+			TouchScreenKeyboardType keyboardType = ((type == 0 || type == 2) ? TouchScreenKeyboardType.ASCIICapable : TouchScreenKeyboardType.NumberPad);
+			TouchScreenKeyboard.hideInput = false;
+			tk = TouchScreenKeyboard.Open(text, keyboardType, autocorrection: false, multiline: false, type == 2, alert: false, caption);
+		}
+
+		public static void update()
+		{
+			try
+			{
+				if (tk != null && tk.done)
+				{
+					if (act != null)
+					{
+						act.perform(tk.text);
+					}
+					tk.text = string.Empty;
+					tk = null;
+				}
+			}
+			catch (Exception)
+			{
+			}
+		}
+	}
+}
