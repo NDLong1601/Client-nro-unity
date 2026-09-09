@@ -81,5 +81,10 @@ namespace Game2
 		{
 			return current.loaded && current.clanId == expectedClanId;
 		}
+
+		public static void reset()
+		{
+			current = new ClanShop();
+		}
 	}
 }

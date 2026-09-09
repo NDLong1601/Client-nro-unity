@@ -95,18 +95,24 @@ namespace Game1
 				MyVector myVector = new MyVector();
 				int num = 0;
 				GameCanvas.timeLoading = 15;
+				if (msg.command == 127)
+				{
+					sbyte action = msg.reader().readByte();
+					if (!ClanTree.receive(msg, action)
+						&& !ClanProgression.receive(msg, action)
+						&& !ClanShop.receive(msg, action)
+						&& !ClanTreasury.receive(msg, action)
+						&& !ClanValue.receive(msg, action)
+						&& !ClanRanking.receive(msg, action)
+						&& !ClanAppearance.receive(msg, action))
+					{
+						Controller2.readInfoRada(msg, action);
+					}
+					return;
+				}
 				Controller2.readMessage(msg);
 				switch (msg.command)
 				{
-				case 127:
-				{
-					sbyte clanPacketAction = msg.reader().readByte();
-					if (!ClanTree.receive(msg, clanPacketAction) && !ClanProgression.receive(msg, clanPacketAction) && !ClanShop.receive(msg, clanPacketAction))
-					{
-						ClanTreasury.receive(msg, clanPacketAction);
-					}
-				}
-					break;
 				case 126:
 					FishingQuickTime.readMessage(msg);
 					break;
@@ -1663,6 +1669,13 @@ namespace Game1
 					if (num6 == -1)
 					{
 						Char.myCharz().clan = null;
+						ClanTree.reset();
+						ClanProgression.reset();
+						ClanTreasury.reset();
+						ClanShop.reset();
+						ClanValue.reset();
+						ClanRanking.reset();
+						ClanAppearance.reset();
 						ClanMessage.vMessage.removeAllElements();
 						if (GameCanvas.panel.member != null)
 						{
@@ -1746,6 +1759,16 @@ namespace Game1
 							int[] profilePotentialRanks = new int[ClanProgression.BRANCH_COUNT];
 							int[] profileBuffPercents = new int[ClanProgression.BUFF_COUNT];
 							long[] profileBuffRemainingMillis = new long[ClanProgression.BUFF_COUNT];
+							bool profileClanValueEnabled = false;
+							int profileClanValueFormulaVersion = 0;
+							long profileClanValue = 0L;
+							long profileClanLevelScore = 0L;
+							long profileSpentPotentialScore = 0L;
+							long profileTreeLevelScore = 0L;
+							long profileAchievementScore = 0L;
+							long profileWeeklyActivityScore = 0L;
+							long profileClanValueVersion = 0L;
+							ClanAppearanceData profileAppearance = null;
 							if (profileVersion >= 2)
 							{
 								profileClanGold = msg.reader().readLong();
@@ -1800,6 +1823,22 @@ namespace Game1
 									}
 								}
 							}
+							if (profileVersion >= Clan.PROFILE_VALUE_VERSION)
+							{
+								profileClanValueEnabled = msg.reader().readBoolean();
+								profileClanValueFormulaVersion = msg.reader().readUnsignedByte();
+								profileClanValue = msg.reader().readLong();
+								profileClanLevelScore = msg.reader().readLong();
+								profileSpentPotentialScore = msg.reader().readLong();
+								profileTreeLevelScore = msg.reader().readLong();
+								profileAchievementScore = msg.reader().readLong();
+								profileWeeklyActivityScore = msg.reader().readLong();
+								profileClanValueVersion = msg.reader().readLong();
+							}
+							if (profileVersion >= Clan.PROFILE_APPEARANCE_VERSION)
+							{
+								profileAppearance = ClanAppearance.readDetails(msg.reader(), 1);
+							}
 							if (profileVersion >= Clan.PROFILE_V2_VERSION && profileClanId == Char.myCharz().clan.ID && profileLevel >= 1 && profileMaxMember >= profileCurrentMember)
 							{
 								Char.myCharz().clan.profileVersion = profileVersion;
@@ -1826,6 +1865,18 @@ namespace Game1
 								{
 									ClanProgression.applyProfileBuffSnapshot(profileClanId,
 										profileBuffPercents, profileBuffRemainingMillis);
+								}
+								if (profileVersion >= Clan.PROFILE_VALUE_VERSION)
+								{
+									ClanValue.applyProfileSnapshot(profileClanId, profileClanValueEnabled,
+										profileClanValueFormulaVersion, profileClanValue,
+										profileClanLevelScore, profileSpentPotentialScore,
+										profileTreeLevelScore, profileAchievementScore,
+										profileWeeklyActivityScore, profileClanValueVersion);
+								}
+								if (profileVersion >= Clan.PROFILE_APPEARANCE_VERSION)
+								{
+									ClanAppearance.applySnapshot(profileAppearance, profileClanId);
 								}
 							}
 						}

@@ -452,6 +452,24 @@ namespace Game2
 			}
 		}
 
+		/// <summary>Draws a dynamic game font with an exact RGB color.</summary>
+		public void drawStringColor(mGraphics g, string st, int x, int y, int align, int rgb)
+		{
+			if (mGraphics.zoomLevel == 1 || myFont == null)
+			{
+				drawString(g, st, x, y, align);
+				return;
+			}
+			Color previousColor1 = color1;
+			Color previousColor2 = color2;
+			Color exactColor = new Color32((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, byte.MaxValue);
+			color1 = exactColor;
+			color2 = exactColor;
+			_drawString(g, st, x - 1, y - yAdd, align);
+			color1 = previousColor1;
+			color2 = previousColor2;
+		}
+
 		public void drawStringBorder(mGraphics g, string st, int x, int y, int align)
 		{
 			if (mGraphics.zoomLevel == 1)

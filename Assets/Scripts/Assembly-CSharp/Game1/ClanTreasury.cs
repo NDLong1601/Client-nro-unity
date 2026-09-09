@@ -192,6 +192,11 @@ namespace Game1
 			return current.clanId == expectedClanId && current.ledgerVersion == current.version;
 		}
 
+		public static void reset()
+		{
+			current = new ClanTreasury();
+		}
+
 		private static void refreshVisibleTreasury()
 		{
 			try

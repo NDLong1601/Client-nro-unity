@@ -4,7 +4,7 @@ public class Management
 {
     public static bool isLogo = true;
 
-    // This source project runs beside Teamobi2026/SRC. The server listens on
+    // This source project runs beside source-server-nro/source-server. The server listens on
     // 14445 locally and publishes its complete list after this first connection.
     public static string IpServer = "NRO:127.0.0.1:14445:0,0,0";
 

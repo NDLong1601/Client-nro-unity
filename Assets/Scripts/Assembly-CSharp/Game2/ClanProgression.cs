@@ -325,6 +325,13 @@ namespace Game2
 			requestBuffSnapshot(true);
 		}
 
+		public static void reset()
+		{
+			current = new ClanProgression();
+			lastSnapshotRequestAt = 0L;
+			lastBuffSnapshotRequestAt = 0L;
+		}
+
 		/// <summary>Refreshes just the temporary clan buffs after a successful clan-storage action.</summary>
 		public static void requestBuffSnapshot(bool force)
 		{

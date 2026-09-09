@@ -1056,9 +1056,14 @@ namespace Game1.Assets.src.f
 
 		private static void readInfoRada(Message msg)
 		{
+			readInfoRada(msg, msg.reader().readByte());
+		}
+
+		public static void readInfoRada(Message msg, sbyte action)
+		{
 			try
 			{
-				switch (msg.reader().readByte())
+				switch (action)
 				{
 				case 0:
 				{

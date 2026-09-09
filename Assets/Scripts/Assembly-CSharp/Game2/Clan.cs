@@ -14,6 +14,10 @@ namespace Game2
 
 		public const int PROFILE_BUFF_VERSION = 5;
 
+		public const int PROFILE_VALUE_VERSION = 6;
+
+		public const int PROFILE_APPEARANCE_VERSION = 7;
+
 		public int ID;
 
 		public int imgID;

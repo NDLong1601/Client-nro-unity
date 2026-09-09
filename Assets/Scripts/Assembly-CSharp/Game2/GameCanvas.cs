@@ -984,6 +984,13 @@ namespace Game2
 				panel2 = null;
 				GameScr.isPaint = true;
 				ClanMessage.vMessage.removeAllElements();
+				ClanTree.reset();
+				ClanProgression.reset();
+				ClanTreasury.reset();
+				ClanShop.reset();
+				ClanValue.reset();
+				ClanRanking.reset();
+				ClanAppearance.reset();
 				GameScr.textTime.removeAllElements();
 				GameScr.vClan.removeAllElements();
 				GameScr.vFriend.removeAllElements();

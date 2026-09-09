@@ -89,6 +89,10 @@ namespace Game2
 				{
 					mFont.tahoma_7_grey.drawString(g, chat[0] + ((chat.Length <= 1) ? string.Empty : "..."), x + 3, y + 11, 0);
 				}
+				else if (color == 2)
+				{
+					mFont.tahoma_7_green.drawString(g, chat[0] + ((chat.Length <= 1) ? string.Empty : "..."), x + 3, y + 11, 0);
+				}
 				else
 				{
 					mFont.tahoma_7_red.drawString(g, chat[0] + ((chat.Length <= 1) ? string.Empty : "..."), x + 3, y + 11, 0);

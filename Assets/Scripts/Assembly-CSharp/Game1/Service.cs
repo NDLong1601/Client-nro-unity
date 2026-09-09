@@ -436,6 +436,48 @@ namespace Game1
 			}
 		}
 
+		public void clanValueView()
+		{
+			clanPhase5ReadOnly(ClanValue.REQUEST_VIEW, 0, 0);
+		}
+
+		public void clanRankingPage(int pageNumber, int pageSize)
+		{
+			clanPhase5ReadOnly(ClanRanking.REQUEST_PAGE, pageNumber, pageSize);
+		}
+
+		public void clanAppearanceView()
+		{
+			clanPhase5ReadOnly(ClanAppearance.REQUEST_VIEW, 0, 0);
+		}
+
+		private void clanPhase5ReadOnly(sbyte action, int pageNumber, int pageSize)
+		{
+			Message message = null;
+			try
+			{
+				message = new Message(127);
+				message.writer().writeByte(action);
+				if (action == ClanRanking.REQUEST_PAGE)
+				{
+					message.writer().writeShort(pageNumber);
+					message.writer().writeByte(pageSize);
+				}
+				session.sendMessage(message);
+			}
+			catch (Exception ex)
+			{
+				Cout.println(ex.Message + ex.StackTrace);
+			}
+			finally
+			{
+				if (message != null)
+				{
+					message.cleanup();
+				}
+			}
+		}
+
 		public void clanProgression(sbyte action, sbyte branch = 0)
 		{
 			Message message = null;

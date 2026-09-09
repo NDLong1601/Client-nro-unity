@@ -23,7 +23,7 @@ namespace Game2
 		private const int ACTION_ASK_HELP = 21004;
 		private const int ACTION_COMPLETE_UPGRADE = 21005;
 		private const int ACTION_START_UPGRADE = 21006;
-		private const int IMAGE_SET_VERSION = 2;
+		private const int IMAGE_SET_VERSION = 3;
 		private const string IMAGE_SET_VERSION_KEY = "ClanTreeImageVersion_Game2";
 
 		public static ClanTree current = new ClanTree();
@@ -92,6 +92,11 @@ namespace Game2
 						long progressionVersion = message.reader().readLong();
 						ClanProgression.applyExpSnapshot(receivedClanId, clanExp,
 							clanExpRequired, progressionVersion);
+						if (detailVersion >= 2 && message.reader().available() > 0)
+						{
+							ClanAppearanceData appearance = ClanAppearance.readDetails(message.reader(), 1);
+							ClanAppearance.applySnapshot(appearance, receivedClanId);
+						}
 					}
 				}
 				current.loaded = true;
@@ -123,6 +128,13 @@ namespace Game2
 			Service.gI().clanTree(REQUEST_VIEW);
 		}
 
+		public static void reset()
+		{
+			current = new ClanTree();
+			lastSnapshotRequestAt = 0L;
+			interactionCommand = null;
+		}
+
 		public static string imageName()
 		{
 			return "cay_lv_" + current.level.ToString("D2");
@@ -131,6 +143,16 @@ namespace Game2
 		private static string imageName(int displayLevel)
 		{
 			return "cay_lv_" + displayLevel.ToString("D2");
+		}
+
+		private static string displayImageName(int clanId, int displayLevel)
+		{
+			if (ClanAppearance.isReady(clanId) && ClanAppearance.current.enabled
+				&& ClanAppearance.current.treeLevel == displayLevel)
+			{
+				return ClanAppearance.current.resourceName;
+			}
+			return imageName(displayLevel);
 		}
 
 		private static void ensureImageSetVersion()
@@ -203,7 +225,8 @@ namespace Game2
 			{
 				return;
 			}
-			MainImage image = ImgByName.getImagePath(imageName(isReady(Char.myCharz().clan.ID) ? current.level : 1), ImgByName.hashImagePath);
+			int displayLevel = isReady(Char.myCharz().clan.ID) ? current.level : 1;
+			MainImage image = ImgByName.getImagePath(displayImageName(Char.myCharz().clan.ID, displayLevel), ImgByName.hashImagePath);
 			int imageHeight = image.img == null ? 80 : image.img.getHeight();
 			interactionCommand.x = TREE_X - GameScr.cmx;
 			interactionCommand.y = TREE_GROUND_Y - imageHeight - 16 - GameScr.cmy;
@@ -224,7 +247,8 @@ namespace Game2
 			{
 				return false;
 			}
-			MainImage image = ImgByName.getImagePath(imageName(isReady(Char.myCharz().clan.ID) ? current.level : 1), ImgByName.hashImagePath);
+			int displayLevel = isReady(Char.myCharz().clan.ID) ? current.level : 1;
+			MainImage image = ImgByName.getImagePath(displayImageName(Char.myCharz().clan.ID, displayLevel), ImgByName.hashImagePath);
 			int width = image.img == null ? 100 : image.img.getWidth();
 			int height = image.img == null ? 90 : image.img.getHeight();
 			if (mapX < TREE_X - width / 2 - 18 || mapX > TREE_X + width / 2 + 18
@@ -320,24 +344,59 @@ namespace Game2
 			{
 				requestSnapshot(false);
 			}
+			if (!ClanAppearance.isReady(Char.myCharz().clan.ID))
+			{
+				ClanAppearance.requestSnapshot(false);
+			}
 			// Every clan owns a level-1 tree. Draw that safe visual fallback while
 			// waiting for the server snapshot, then switch to the authoritative level.
 			int displayLevel = snapshotReady ? current.level : 1;
-			MainImage image = ImgByName.getImagePath(imageName(displayLevel), ImgByName.hashImagePath);
+			MainImage image = ImgByName.getImagePath(displayImageName(Char.myCharz().clan.ID, displayLevel), ImgByName.hashImagePath);
 			if (image.img == null)
 			{
 				return;
 			}
+			paintAppearanceAura(g, image.img.getWidth(), image.img.getHeight());
 			g.drawImage(image.img, TREE_X, TREE_GROUND_Y, mGraphics.BOTTOM | mGraphics.HCENTER);
 			string label = "Cây bang " + Char.myCharz().clan.name + " - Cấp " + displayLevel;
+			if (ClanAppearance.isReady(Char.myCharz().clan.ID) && ClanAppearance.current.enabled
+				&& ClanAppearance.current.tierName.Length > 0)
+			{
+				label += " - " + ClanAppearance.current.tierName;
+			}
 			int labelY = TREE_GROUND_Y - image.img.getHeight() - 12;
 			bool nightMode = GameScr.gI().isRongThanXuatHien;
 			mFont labelFont = nightMode ? mFont.tahoma_7b_white : mFont.tahoma_7b_yellow;
-			labelFont.drawString(g, label, TREE_X, labelY, mFont.CENTER);
+			if (!nightMode && ClanAppearance.isReady(Char.myCharz().clan.ID) && ClanAppearance.current.enabled)
+			{
+				labelFont.drawStringColor(g, label, TREE_X, labelY, mFont.CENTER, ClanAppearance.current.accentRgb);
+			}
+			else
+			{
+				labelFont.drawString(g, label, TREE_X, labelY, mFont.CENTER);
+			}
 			if (snapshotReady && isUpgrading())
 			{
 				string upgradeLabel = canCompleteUpgrade() ? "Nâng cấp hoàn tất - chạm cây để nhận" : "Đang nâng cấp: " + upgradeRemainingText();
 				mFont.tahoma_7b_white.drawString(g, upgradeLabel, TREE_X, labelY + 14, mFont.CENTER);
+			}
+		}
+
+		private static void paintAppearanceAura(mGraphics g, int imageWidth, int imageHeight)
+		{
+			if (Char.myCharz().clan == null || !ClanAppearance.isReady(Char.myCharz().clan.ID)
+				|| !ClanAppearance.current.enabled || ClanAppearance.current.auraStyle <= 0)
+			{
+				return;
+			}
+			int pulse = (GameCanvas.gameTick / 4) % 3;
+			g.setColor(ClanAppearance.current.accentRgb);
+			for (int ring = 0; ring < ClanAppearance.current.auraStyle; ring++)
+			{
+				int padding = 3 + pulse + ring * 4;
+				g.drawRect(TREE_X - imageWidth / 2 - padding,
+					TREE_GROUND_Y - imageHeight - padding,
+					imageWidth + padding * 2, imageHeight + padding * 2);
 			}
 		}
 	}

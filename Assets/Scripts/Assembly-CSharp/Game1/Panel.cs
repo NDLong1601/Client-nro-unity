@@ -495,11 +495,33 @@ namespace Game1
 
         public bool isClanPotential;
 
+        public bool isClanRanking;
+
         public bool isClanShop;
 
         private static readonly string[] CLAN_POTENTIAL_NAMES = new string[6] { "Sức đánh", "HP", "KI", "May mắn", "TNSM", "Vàng từ quái" };
 
         private int activeClanFunctionTab = 1;
+
+        private const int CLAN_VIEW_MAIN = 0;
+
+        private const int CLAN_VIEW_INFO = 1;
+
+        private const int CLAN_VIEW_TREASURY = 2;
+
+        private const int CLAN_VIEW_POTENTIAL = 3;
+
+        private const int CLAN_VIEW_SHOP = 4;
+
+        private const int CLAN_VIEW_TREASURY_HISTORY = 5;
+
+        private const int CLAN_VIEW_RANKING = 6;
+
+        private readonly int[] clanViewHistory = new int[8];
+
+        private int clanViewHistoryCount;
+
+        private bool restoringClanView;
 
         private const string CLAN_TREASURY_GOLD_INPUT = "Đóng góp Vàng bang";
 
@@ -512,6 +534,12 @@ namespace Game1
         private const int CLAN_SHOP_RESTOCK_ACTION = 14023;
 
         private const int CLAN_GIFT_CONFIRM_ACTION = 14024;
+
+        private const int CLAN_RANKING_PREVIOUS_ACTION = 14025;
+
+        private const int CLAN_RANKING_REFRESH_ACTION = 14026;
+
+        private const int CLAN_RANKING_NEXT_ACTION = 14027;
 
         public const int TYPE_MAIN = 0;
 
@@ -2208,6 +2236,12 @@ namespace Game1
                         GameCanvas.clearAllPointerEvent();
                         return;
                     }
+                    if (isClanSubviewVisible())
+                    {
+                        returnFromClanSubview();
+                        GameCanvas.clearAllPointerEvent();
+                        return;
+                    }
                     if (type != 4)
                     {
                         hide();
@@ -2232,6 +2266,12 @@ namespace Game1
                     if (isActivityDashboardVisible())
                     {
                         returnFromActivityDashboard();
+                        GameCanvas.clearAllPointerEvent();
+                        return;
+                    }
+                    if (isClanSubviewVisible())
+                    {
+                        returnFromClanSubview();
                         GameCanvas.clearAllPointerEvent();
                         return;
                     }
@@ -4031,7 +4071,7 @@ else
             }
             else if (isClanInfo)
             {
-                currentListLength = 17;
+                currentListLength = 24;
                 clanInfo = "Thông tin bang hội";
                 clanReport = string.Empty;
             }
@@ -4039,6 +4079,13 @@ else
             {
                 currentListLength = CLAN_POTENTIAL_NAMES.Length + 3;
                 clanInfo = "Tiềm năng bang";
+                clanReport = string.Empty;
+            }
+            else if (isClanRanking)
+            {
+                ITEM_HEIGHT = 32;
+                currentListLength = ClanRanking.current.entries.size() + 3;
+                clanInfo = "Xếp hạng bang";
                 clanReport = string.Empty;
             }
             else if (isClanShop)
@@ -4075,29 +4122,27 @@ else
             }
             else if (isTreasury)
             {
-                clansOption = new string[4][]
+                clansOption = new string[3][]
                 {
-                    new string[2] { "Quay", "lại" },
                     new string[2] { "Góp", "vàng" },
                     new string[2] { "Góp", "ngọc" },
                     new string[2] { "Lịch", "sử" }
                 };
             }
-            else if (isClanInfo || isClanPotential)
+            else if (isClanInfo || isClanPotential || isClanRanking)
             {
                 clansOption = new string[4][]
                 {
-                    new string[2] { "Quay", "lại" },
                     new string[2] { "Thông", "tin" },
                     new string[2] { "Kho", "bang" },
-                    new string[2] { "Tiềm", "năng" }
+                    new string[2] { "Tiềm", "năng" },
+                    new string[2] { "Xếp", "hạng" }
                 };
             }
             else if (isTreasuryHistory)
             {
-                clansOption = new string[4][]
+                clansOption = new string[3][]
                 {
-                    new string[2] { "Quay", "lại" },
                     new string[2] { "Góp", "vàng" },
                     new string[2] { "Góp", "ngọc" },
                     new string[1] { "Lịch sử" }
@@ -4116,9 +4161,8 @@ else
             }
             else if (Char.myCharz().role == 0)
             {
-                clansOption = new string[4][]
+                clansOption = new string[3][]
                 {
-                    new string[2] { "Quay", "lại" },
                     mResources.leaveClan,
                     mResources.khau_hieuu,
                     mResources.bieu_tuongg
@@ -4126,9 +4170,8 @@ else
             }
             else
             {
-                clansOption = new string[2][]
+                clansOption = new string[1][]
                 {
-                    new string[2] { "Quay", "lại" },
                     mResources.leaveClan
                 };
             }
@@ -4150,11 +4193,14 @@ else
 
         public void setTabClans()
         {
+            clanViewHistoryCount = 0;
+            restoringClanView = false;
             GameScr.isNewClanMessage = false;
             isTreasury = false;
             isTreasuryHistory = false;
             isClanInfo = false;
             isClanPotential = false;
+            isClanRanking = false;
             isClanShop = false;
             ITEM_HEIGHT = 24;
             if (lastSelect != null && lastSelect[3] == 0)
@@ -4205,6 +4251,7 @@ else
             {
                 return;
             }
+            rememberClanView(CLAN_VIEW_TREASURY);
             isSearchClan = false;
             isViewMember = false;
             isMessage = false;
@@ -4212,6 +4259,7 @@ else
             isTreasuryHistory = false;
             isClanInfo = false;
             isClanPotential = false;
+            isClanRanking = false;
             isClanShop = false;
             initTabClans();
             cmy = (cmtoY = 0);
@@ -4229,12 +4277,17 @@ else
 
         private void openClanMain()
         {
+            if (!restoringClanView)
+            {
+                clanViewHistoryCount = 0;
+            }
             isSearchClan = false;
             isViewMember = false;
             isTreasury = false;
             isTreasuryHistory = false;
             isClanInfo = false;
             isClanPotential = false;
+            isClanRanking = false;
             isClanShop = false;
             isMessage = true;
             initTabClans();
@@ -4246,6 +4299,7 @@ else
 
         private void openClanInfo()
         {
+            rememberClanView(CLAN_VIEW_INFO);
             isSearchClan = false;
             isViewMember = false;
             isMessage = false;
@@ -4253,8 +4307,9 @@ else
             isTreasuryHistory = false;
             isClanInfo = true;
             isClanPotential = false;
+            isClanRanking = false;
             isClanShop = false;
-            activeClanFunctionTab = 1;
+            activeClanFunctionTab = 0;
             initTabClans();
             cmy = (cmtoY = 0);
             selected = GameCanvas.isTouch ? -1 : 0;
@@ -4267,10 +4322,13 @@ else
             {
                 ClanProgression.requestSnapshot(true);
             }
+            ClanValue.requestSnapshot(!ClanValue.isReady(Char.myCharz().clan.ID));
+            ClanAppearance.requestSnapshot(!ClanAppearance.isReady(Char.myCharz().clan.ID));
         }
 
         private void openClanPotential()
         {
+            rememberClanView(CLAN_VIEW_POTENTIAL);
             isSearchClan = false;
             isViewMember = false;
             isMessage = false;
@@ -4278,8 +4336,9 @@ else
             isTreasuryHistory = false;
             isClanInfo = false;
             isClanPotential = true;
+            isClanRanking = false;
             isClanShop = false;
-            activeClanFunctionTab = 3;
+            activeClanFunctionTab = 2;
             initTabClans();
             cmy = (cmtoY = 0);
             selected = GameCanvas.isTouch ? -1 : 0;
@@ -4293,8 +4352,10 @@ else
 
         private void openClanTreasuryHistory()
         {
+            rememberClanView(CLAN_VIEW_TREASURY_HISTORY);
             isTreasury = false;
             isTreasuryHistory = true;
+            isClanRanking = false;
             isClanShop = false;
             initTabClans();
             cmy = (cmtoY = 0);
@@ -4310,20 +4371,44 @@ else
         {
             if (tabIndex == 0)
             {
-                openClanMain();
+                openClanInfo();
             }
             else if (tabIndex == 1)
             {
-                openClanInfo();
+                openClanTreasury();
             }
             else if (tabIndex == 2)
             {
-                openClanTreasury();
+                openClanPotential();
             }
             else if (tabIndex == 3)
             {
-                openClanPotential();
+                openClanRanking();
             }
+        }
+
+        private void openClanRanking()
+        {
+            if (Char.myCharz().clan == null)
+            {
+                return;
+            }
+            rememberClanView(CLAN_VIEW_RANKING);
+            isSearchClan = false;
+            isViewMember = false;
+            isMessage = false;
+            isTreasury = false;
+            isTreasuryHistory = false;
+            isClanInfo = false;
+            isClanPotential = false;
+            isClanRanking = true;
+            isClanShop = false;
+            activeClanFunctionTab = 3;
+            initTabClans();
+            cmy = (cmtoY = 0);
+            selected = GameCanvas.isTouch ? -1 : 0;
+            cSelected = -1;
+            ClanRanking.requestPage(ClanRanking.current.loaded ? ClanRanking.current.pageNumber : 0, true);
         }
 
         private void openClanShop()
@@ -4332,6 +4417,7 @@ else
             {
                 return;
             }
+            rememberClanView(CLAN_VIEW_SHOP);
             isSearchClan = false;
             isViewMember = false;
             isMessage = false;
@@ -4339,6 +4425,7 @@ else
             isTreasuryHistory = false;
             isClanInfo = false;
             isClanPotential = false;
+            isClanRanking = false;
             isClanShop = true;
             activeClanFunctionTab = 4;
             initTabClans();
@@ -4346,6 +4433,69 @@ else
             selected = GameCanvas.isTouch ? -1 : 0;
             cSelected = -1;
             Service.gI().clanShopView();
+        }
+
+        private int getCurrentClanView()
+        {
+            if (isTreasuryHistory) return CLAN_VIEW_TREASURY_HISTORY;
+            if (isClanShop) return CLAN_VIEW_SHOP;
+            if (isClanRanking) return CLAN_VIEW_RANKING;
+            if (isClanPotential) return CLAN_VIEW_POTENTIAL;
+            if (isTreasury) return CLAN_VIEW_TREASURY;
+            if (isClanInfo) return CLAN_VIEW_INFO;
+            return CLAN_VIEW_MAIN;
+        }
+
+        private void rememberClanView(int destination)
+        {
+            if (restoringClanView)
+            {
+                return;
+            }
+            int current = getCurrentClanView();
+            if (current == destination || (clanViewHistoryCount > 0 && clanViewHistory[clanViewHistoryCount - 1] == current))
+            {
+                return;
+            }
+            if (clanViewHistoryCount == clanViewHistory.Length)
+            {
+                for (int i = 1; i < clanViewHistory.Length; i++)
+                {
+                    clanViewHistory[i - 1] = clanViewHistory[i];
+                }
+                clanViewHistoryCount--;
+            }
+            clanViewHistory[clanViewHistoryCount++] = current;
+        }
+
+        private bool isClanSubviewVisible()
+        {
+            return type == TYPE_MAIN && currentTabIndex == 3 && mainTabName.Length == 5
+                && (isClanInfo || isTreasury || isTreasuryHistory || isClanPotential || isClanRanking || isClanShop || isViewMember);
+        }
+
+        private void returnFromClanSubview()
+        {
+            int destination = CLAN_VIEW_MAIN;
+            if (clanViewHistoryCount > 0)
+            {
+                destination = clanViewHistory[--clanViewHistoryCount];
+            }
+            restoringClanView = true;
+            try
+            {
+                if (destination == CLAN_VIEW_INFO) openClanInfo();
+                else if (destination == CLAN_VIEW_TREASURY) openClanTreasury();
+                else if (destination == CLAN_VIEW_POTENTIAL) openClanPotential();
+                else if (destination == CLAN_VIEW_RANKING) openClanRanking();
+                else if (destination == CLAN_VIEW_SHOP) openClanShop();
+                else if (destination == CLAN_VIEW_TREASURY_HISTORY) openClanTreasuryHistory();
+                else openClanMain();
+            }
+            finally
+            {
+                restoringClanView = false;
+            }
         }
 
         private void requestClanTreasuryDeposit(sbyte currency)
@@ -6674,6 +6824,10 @@ else
             {
                 currentListLength = 7;
             }
+            else if (isClanRanking)
+            {
+                currentListLength = ClanRanking.current.entries.size() + 3;
+            }
             else if (isClanShop)
             {
                 currentListLength = ClanShop.current.items.size() + 2;
@@ -6710,7 +6864,7 @@ else
                         {
                             for (int k = 0; k < clansOption.Length; k++)
                             {
-                                bool activeFunctionTab = (isClanInfo || isClanPotential || isClanShop) && k == activeClanFunctionTab;
+                                bool activeFunctionTab = (isClanInfo || isClanPotential || isClanRanking || isClanShop) && k == activeClanFunctionTab;
                                 g.setColor((activeFunctionTab || (k == cSelected && j == selected)) ? 16383818 : 15723751);
                                 g.fillRect(num + k * TAB_W, num7, TAB_W - 1, 23, 5);
                                 for (int l = 0; l < clansOption[k].Length; l++)
@@ -6815,7 +6969,7 @@ else
 
         private bool paintClanFeatureRow(mGraphics g, int row)
         {
-            if (row < 2 || (!isTreasury && !isTreasuryHistory && !isClanInfo && !isClanPotential && !isClanShop))
+            if (row < 2 || (!isTreasury && !isTreasuryHistory && !isClanInfo && !isClanPotential && !isClanRanking && !isClanShop))
             {
                 return false;
             }
@@ -6825,6 +6979,46 @@ else
             int rowH = ITEM_HEIGHT - 1;
             if (isClanInfo)
             {
+                return true;
+            }
+            if (isClanRanking)
+            {
+                g.setColor((row != selected) ? 15196114 : 16383818);
+                g.fillRect(rowX, rowY, rowW, rowH);
+                if (row == 2)
+                {
+                    ClanRanking.requestPage(ClanRanking.current.loaded ? ClanRanking.current.pageNumber : 0, false);
+                    if (!ClanRanking.current.loaded)
+                    {
+                        mFont.tahoma_7_grey.drawString(g, "Đang tải xếp hạng bang...", rowX + 8, rowY + 10, mFont.LEFT);
+                    }
+                    else
+                    {
+                        int pageDisplay = ClanRanking.current.pageNumber + 1;
+                        int pageCount = System.Math.Max(1, ClanRanking.current.totalPages);
+                        string rankText = ClanRanking.current.requesterRank > 0
+                            ? " | Hạng bang: " + ClanRanking.current.requesterRank : string.Empty;
+                        mFont.tahoma_7b_dark.drawString(g, "Trang " + pageDisplay + "/" + pageCount + rankText,
+                            rowX + 8, rowY + 4, mFont.LEFT);
+                        mFont.tahoma_7_grey.drawString(g, "Bấm để đổi trang hoặc làm mới", rowX + 8, rowY + 17, mFont.LEFT);
+                    }
+                    return true;
+                }
+                int rankingIndex = row - 3;
+                if (!ClanRanking.current.loaded || rankingIndex < 0
+                    || rankingIndex >= ClanRanking.current.entries.size())
+                {
+                    return true;
+                }
+                ClanRankingEntry rankingEntry = (ClanRankingEntry)ClanRanking.current.entries.elementAt(rankingIndex);
+                bool ownClan = Char.myCharz().clan != null && rankingEntry.clanId == Char.myCharz().clan.ID;
+                mFont rankingFont = ownClan ? mFont.tahoma_7b_yellow : mFont.tahoma_7b_dark;
+                rankingFont.drawString(g, "#" + rankingEntry.rank + " " + rankingEntry.name,
+                    rowX + 8, rowY + 4, mFont.LEFT);
+                string detail = "Giá trị " + Res.formatNumber(rankingEntry.clanValue)
+                    + " | Cấp " + rankingEntry.clanLevel + " | Cây " + rankingEntry.treeLevel
+                    + " | " + rankingEntry.currentMembers + "/" + rankingEntry.maxMembers;
+                mFont.tahoma_7_grey.drawString(g, detail, rowX + 8, rowY + 17, mFont.LEFT);
                 return true;
             }
             if (isClanPotential)
@@ -6844,9 +7038,8 @@ else
                 }
                 if (row == 2)
                 {
-                    mFont.tahoma_7b_dark.drawString(g, "Cấp bang " + ClanProgression.current.level + " - EXP "
-                        + Res.formatNumber(ClanProgression.current.exp) + "/" + Res.formatNumber(ClanProgression.current.expRequired), rowX + 8, rowY + 2, mFont.LEFT);
-                    mFont.tahoma_7_grey.drawString(g, "Điểm còn: " + ClanProgression.current.unspentPoints + "  |  Bấm để nâng cấp", rowX + 8, rowY + 13, mFont.LEFT);
+                    mFont.tahoma_7b_dark.drawString(g, "Nâng cấp bang", rowX + 8, rowY + 2, mFont.LEFT);
+                    mFont.tahoma_7_grey.drawString(g, "Bấm để nâng cấp", rowX + 8, rowY + 13, mFont.LEFT);
                     return true;
                 }
                 int branch = row - 3;
@@ -6915,11 +7108,11 @@ else
             {
                 string[] labels = new string[5]
                 {
+                    "Mở kho vật phẩm bang",
                     "Capsule bang: " + Res.formatNumber(ClanTreasury.current.capsule),
                     "Vàng bang: " + Res.formatNumber(ClanTreasury.current.gold),
                     "Ngọc bang: " + Res.formatNumber(ClanTreasury.current.gem),
-                    "Cống hiến của bạn: " + Res.formatNumber(ClanTreasury.current.contribution),
-                    "Mở kho vật phẩm bang"
+                    "Cống hiến của bạn: " + Res.formatNumber(ClanTreasury.current.contribution)
                 };
                 g.setColor((row != selected) ? 15196114 : 16383818);
                 g.fillRect(rowX, rowY, rowW, rowH, 5);
@@ -6947,6 +7140,8 @@ else
                 return;
             }
             ClanProgression.requestSnapshot(false);
+            ClanValue.requestSnapshot(false);
+            ClanAppearance.requestSnapshot(false);
             int rowX = xScroll + 2;
             int rowY = yScroll + ITEM_HEIGHT * 2;
             int textX = rowX + 6;
@@ -6961,6 +7156,55 @@ else
             mFont.tahoma_7b_dark.drawString(g, "- Khẩu hiệu: " + slogan, textX + 4, textY += 12, mFont.LEFT);
             mFont.tahoma_7b_dark.drawString(g, "- Thành viên: " + clan.currMember + "/" + clan.maxMember, textX + 4, textY += 12, mFont.LEFT);
             mFont.tahoma_7b_dark.drawString(g, "- Bang chủ: " + clan.leaderName, textX + 4, textY += 12, mFont.LEFT);
+            mFont.tahoma_7b_dark.drawString(g, "Clan Value", textX, textY += 13, mFont.LEFT);
+            if (!ClanValue.isReady(clan.ID))
+            {
+                mFont.tahoma_7_grey.drawString(g, "- Đang tải giá trị bang...", textX + 4, textY += 12, mFont.LEFT);
+            }
+            else if (!ClanValue.current.enabled)
+            {
+                mFont.tahoma_7_grey.drawString(g, "- Tính năng đang tạm khóa", textX + 4, textY += 12, mFont.LEFT);
+            }
+            else
+            {
+                mFont.tahoma_7b_yellow.drawString(g, "- Tổng: " + Res.formatNumber(ClanValue.current.totalValue), textX + 4, textY += 12, mFont.LEFT);
+                mFont.tahoma_7b_dark.drawString(g, "- Cấp bang: " + Res.formatNumber(ClanValue.current.clanLevelScore), textX + 4, textY += 12, mFont.LEFT);
+                mFont.tahoma_7b_dark.drawString(g, "- Tiềm năng đã dùng: " + Res.formatNumber(ClanValue.current.spentPotentialScore), textX + 4, textY += 12, mFont.LEFT);
+                mFont.tahoma_7b_dark.drawString(g, "- Cấp cây: " + Res.formatNumber(ClanValue.current.treeLevelScore), textX + 4, textY += 12, mFont.LEFT);
+                mFont.tahoma_7b_dark.drawString(g, "- Thành tích: " + Res.formatNumber(ClanValue.current.achievementScore), textX + 4, textY += 12, mFont.LEFT);
+                mFont.tahoma_7b_dark.drawString(g, "- Hoạt động tuần: " + Res.formatNumber(ClanValue.current.weeklyActivityScore), textX + 4, textY += 12, mFont.LEFT);
+            }
+            mFont.tahoma_7b_dark.drawString(g, "Diện mạo Cây bang", textX, textY += 13, mFont.LEFT);
+            if (!ClanAppearance.isReady(clan.ID))
+            {
+                mFont.tahoma_7_grey.drawString(g, "- Đang tải diện mạo...", textX + 4, textY += 12, mFont.LEFT);
+            }
+            else if (!ClanAppearance.current.enabled)
+            {
+                mFont.tahoma_7_grey.drawString(g, "- Tính năng đang tạm khóa", textX + 4, textY += 12, mFont.LEFT);
+            }
+            else
+            {
+                string appearanceTitle = ClanAppearance.current.title.Length > 0
+                    ? ClanAppearance.current.title : ClanAppearance.current.tierName;
+                mFont.tahoma_7b_yellow.drawStringColor(g, "- " + appearanceTitle, textX + 4,
+                    textY += 12, mFont.LEFT, ClanAppearance.current.accentRgb);
+                if (ClanAppearance.current.nextTierId >= 0)
+                {
+                    mFont.tahoma_7b_dark.drawString(g, "- Kế tiếp: " + ClanAppearance.current.nextTierName,
+                        textX + 4, textY += 12, mFont.LEFT);
+                    mFont.tahoma_7_grey.drawString(g, "- Còn cấp bang/cây: "
+                        + ClanAppearance.current.remainingClanLevels + "/"
+                        + ClanAppearance.current.remainingTreeLevels, textX + 4, textY += 12, mFont.LEFT);
+                    mFont.tahoma_7_grey.drawString(g, "- Còn Clan Value: "
+                        + Res.formatNumber(ClanAppearance.current.remainingClanValue),
+                        textX + 4, textY += 12, mFont.LEFT);
+                }
+                else
+                {
+                    mFont.tahoma_7_grey.drawString(g, "- Đã đạt bậc cao nhất", textX + 4, textY += 12, mFont.LEFT);
+                }
+            }
             mFont.tahoma_7b_dark.drawString(g, "Tài sản", textX, textY += 13, mFont.LEFT);
             mFont.tahoma_7b_dark.drawString(g, "- Capsule bang: " + Res.formatNumber(ClanTreasury.current.capsule), textX + 4, textY += 12, mFont.LEFT);
             mFont.tahoma_7b_dark.drawString(g, "- Vàng bang: " + Res.formatNumber(ClanTreasury.current.gold), textX + 4, textY += 12, mFont.LEFT);
@@ -6983,8 +7227,30 @@ else
             for (int line = 0; line < ClanProgression.BUFF_COUNT; line++)
             {
                 int type = line < 3 ? line : (line == 3 ? 4 : (line == 4 ? 3 : 5));
-                clanBuffFont(type).drawString(g, "- " + ClanProgression.buffStatusText(type),
-                    textX + 4, textY += 12, mFont.LEFT);
+                mFont font = clanBuffFont(type);
+                string status = "- " + ClanProgression.buffStatusText(type);
+                textY += 12;
+                if (ClanProgression.isBuffActive(type))
+                {
+                    font.drawStringColor(g, status, textX + 4, textY, mFont.LEFT, clanBuffColor(type));
+                }
+                else
+                {
+                    font.drawString(g, status, textX + 4, textY, mFont.LEFT);
+                }
+            }
+        }
+
+        private int clanBuffColor(int type)
+        {
+            switch (type)
+            {
+                case 0: return 0xE00000;
+                case 1: return 0x0031E0;
+                case 2: return 0xFFFFFF;
+                case 3: return 0xDE00BA;
+                case 4: return 0x078700;
+                default: return 0xFFF500;
             }
         }
 
@@ -6998,10 +7264,10 @@ else
             {
                 case 0: return mFont.tahoma_7_red;
                 case 1: return mFont.tahoma_7_blue;
-                case 2: return mFont.tahoma_7_yellow;
+                case 2: return mFont.tahoma_7_white;
                 case 3: return mFont.tahoma_7_blue;
                 case 4: return mFont.tahoma_7_green;
-                default: return mFont.tahoma_7_orange;
+                default: return mFont.tahoma_7_yellow;
             }
         }
 
@@ -7992,7 +8258,31 @@ paintScrollArrow(g);
                 {
                     SmallImage.drawSmallImage(g, Char.myCharz().avatarz(), 25, 50, 0, 33);
                     mFont.tahoma_7b_white.drawString(g, clan.name, 60, 4, mFont.LEFT, mFont.tahoma_7b_dark);
-                    if (isTreasury || isTreasuryHistory)
+                    if (isClanRanking)
+                    {
+                        ClanRanking.requestPage(ClanRanking.current.loaded ? ClanRanking.current.pageNumber : 0, false);
+                        string rankingStatus = ClanRanking.current.loaded
+                            ? "Trang " + (ClanRanking.current.pageNumber + 1) + "/" + System.Math.Max(1, ClanRanking.current.totalPages)
+                            : "Đang tải bảng xếp hạng...";
+                        mFont.tahoma_7_yellow.drawString(g, rankingStatus, 60, 16, mFont.LEFT, mFont.tahoma_7_grey);
+                        mFont.tahoma_7_yellow.drawString(g, "Số bang: " + ClanRanking.current.totalEntries, 60, 27, mFont.LEFT, mFont.tahoma_7_grey);
+                        string ownRank = ClanRanking.current.requesterRank > 0
+                            ? ClanRanking.current.requesterRank.ToString() : "Chưa xếp hạng";
+                        mFont.tahoma_7_yellow.drawString(g, "Hạng bang: " + ownRank, 60, 38, mFont.LEFT, mFont.tahoma_7_grey);
+                    }
+                    else if (isClanPotential)
+                    {
+                        ClanProgression.requestSnapshot(false);
+                        if (!ClanProgression.isReady(clan.ID))
+                        {
+                            mFont.tahoma_7_grey.drawString(g, "Đang tải tiến trình bang...", 60, 22, mFont.LEFT);
+                            return;
+                        }
+                        mFont.tahoma_7_yellow.drawString(g, "Cấp bang: " + ClanProgression.current.level, 60, 16, mFont.LEFT, mFont.tahoma_7_grey);
+                        mFont.tahoma_7_yellow.drawString(g, "EXP: " + Res.formatNumber(ClanProgression.current.exp) + "/" + Res.formatNumber(ClanProgression.current.expRequired), 60, 27, mFont.LEFT, mFont.tahoma_7_grey);
+                        mFont.tahoma_7_yellow.drawString(g, "Điểm còn: " + ClanProgression.current.unspentPoints, 60, 38, mFont.LEFT, mFont.tahoma_7_grey);
+                    }
+                    else if (isTreasury || isTreasuryHistory)
                     {
                         mFont.tahoma_7_yellow.drawString(g, "Vàng bang: " + Res.formatNumber(ClanTreasury.current.gold), 60, 16, mFont.LEFT, mFont.tahoma_7_grey);
                         mFont.tahoma_7_yellow.drawString(g, "Ngọc bang: " + Res.formatNumber(ClanTreasury.current.gem), 60, 27, mFont.LEFT, mFont.tahoma_7_grey);
@@ -10865,7 +11155,7 @@ else
                             openClanInfo();
                         }
                     }
-                    else if (isClanInfo || isClanPotential || isClanShop)
+                    else if (isClanInfo || isClanPotential || isClanRanking || isClanShop)
                     {
                         handleClanFunctionTab(cSelected);
                     }
@@ -10873,17 +11163,13 @@ else
                     {
                         if (cSelected == 0)
                         {
-                            openClanInfo();
+                            requestClanTreasuryDeposit(ClanTreasury.CURRENCY_GOLD);
                         }
                         else if (cSelected == 1)
                         {
-                            requestClanTreasuryDeposit(ClanTreasury.CURRENCY_GOLD);
-                        }
-                        else if (cSelected == 2)
-                        {
                             requestClanTreasuryDeposit(ClanTreasury.CURRENCY_GEM);
                         }
-                        else if (cSelected == 3)
+                        else if (cSelected == 2)
                         {
                             Service.gI().clanTreasuryLedger(0L);
                         }
@@ -10892,17 +11178,13 @@ else
                     {
                         if (cSelected == 0)
                         {
-                            openClanInfo();
+                            requestClanTreasuryDeposit(ClanTreasury.CURRENCY_GOLD);
                         }
                         else if (cSelected == 1)
                         {
-                            requestClanTreasuryDeposit(ClanTreasury.CURRENCY_GOLD);
-                        }
-                        else if (cSelected == 2)
-                        {
                             requestClanTreasuryDeposit(ClanTreasury.CURRENCY_GEM);
                         }
-                        else if (cSelected == 3)
+                        else if (cSelected == 2)
                         {
                             openClanTreasuryHistory();
                         }
@@ -10911,17 +11193,13 @@ else
                     {
                         if (cSelected == 0)
                         {
-                            openClanMain();
-                        }
-                        if (cSelected == 1)
-                        {
                             Service.gI().leaveClan();
                         }
-                        if (cSelected == 2 && Char.myCharz().role == 0)
+                        if (cSelected == 1 && Char.myCharz().role == 0)
                         {
                             chagenSlogan();
                         }
-                        if (cSelected == 3 && Char.myCharz().role == 0)
+                        if (cSelected == 2 && Char.myCharz().role == 0)
                         {
                             Service.gI().getClan(3, -1, null);
                         }
@@ -10953,6 +11231,24 @@ else
 						ClanProgression.allocate(selected - 3);
                     }
                 }
+                else if (isClanRanking)
+                {
+                    if (selected == 2)
+                    {
+                        MyVector rankingOptions = new MyVector();
+                        if (ClanRanking.current.loaded && ClanRanking.current.pageNumber > 0)
+                        {
+                            rankingOptions.addElement(new Command("Trang trước", this, CLAN_RANKING_PREVIOUS_ACTION, null));
+                        }
+                        rankingOptions.addElement(new Command("Làm mới", this, CLAN_RANKING_REFRESH_ACTION, null));
+                        if (!ClanRanking.current.loaded || ClanRanking.current.totalPages == 0
+                            || ClanRanking.current.pageNumber + 1 < ClanRanking.current.totalPages)
+                        {
+                            rankingOptions.addElement(new Command("Trang sau", this, CLAN_RANKING_NEXT_ACTION, null));
+                        }
+                        GameCanvas.menu.startAt(rankingOptions, X, (selected + 1) * ITEM_HEIGHT - cmy + yScroll);
+                    }
+                }
                 else if (isClanShop)
                 {
                     if (Char.myCharz().clan == null || !ClanShop.isReady(Char.myCharz().clan.ID))
@@ -10973,7 +11269,7 @@ else
                 }
                 else if (isTreasury)
                 {
-                    if (selected == 6)
+                    if (selected == 2)
                     {
                         Service.gI().clanItemStorageView();
                     }
@@ -11556,6 +11852,21 @@ else
                 ClanTreasuryDepositRequest request = (ClanTreasuryDepositRequest)p;
                 InfoDlg.showWait();
                 Service.gI().clanTreasuryDeposit(request.currency, request.amount, DateTime.UtcNow.Ticks + "-" + Char.myCharz().charID);
+                return;
+            }
+            if (idAction == CLAN_RANKING_PREVIOUS_ACTION)
+            {
+                ClanRanking.requestPage(ClanRanking.current.pageNumber - 1, true);
+                return;
+            }
+            if (idAction == CLAN_RANKING_REFRESH_ACTION)
+            {
+                ClanRanking.requestPage(ClanRanking.current.loaded ? ClanRanking.current.pageNumber : 0, true);
+                return;
+            }
+            if (idAction == CLAN_RANKING_NEXT_ACTION)
+            {
+                ClanRanking.requestPage(ClanRanking.current.pageNumber + 1, true);
                 return;
             }
             if (idAction == CLAN_SHOP_BUY_ACTION)
