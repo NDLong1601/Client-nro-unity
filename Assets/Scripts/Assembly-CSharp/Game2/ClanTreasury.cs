@@ -34,7 +34,15 @@ namespace Game2
 		public const sbyte RESPONSE_LEDGER_PAGE = 111;
 		public const sbyte CURRENCY_GOLD = 1;
 		public const sbyte CURRENCY_GEM = 2;
+		public const sbyte CURRENCY_CAPSULE = 3;
 		public static ClanTreasury current = new ClanTreasury();
+
+		public static bool isPlayerContributionEntry(ClanLedgerEntry entry)
+		{
+			return entry != null && entry.actionType == "DEPOSIT"
+				&& (entry.currencyType == CURRENCY_GOLD || entry.currencyType == CURRENCY_GEM)
+				&& entry.amount > 0L;
+		}
 		public int clanId = -1;
 		public long capsule;
 		public long gold;
@@ -108,7 +116,10 @@ namespace Game2
 					clanLedgerEntry.amount = msg.reader().readLong();
 					clanLedgerEntry.balanceAfter = msg.reader().readLong();
 					clanLedgerEntry.createdAt = msg.reader().readLong();
-					current.ledger.addElement(clanLedgerEntry);
+					if (isPlayerContributionEntry(clanLedgerEntry))
+					{
+						current.ledger.addElement(clanLedgerEntry);
+					}
 				}
 				current.hasMore = receivedHasMore;
 				current.nextLedgerCursor = receivedNextCursor;
@@ -140,6 +151,8 @@ namespace Game2
 			}
 			current.clanId = receivedClanId;
 			current.capsule = receivedCapsule;
+			Char.myCharz().clan.clanPoint = (int)System.Math.Min(int.MaxValue,
+				System.Math.Max(0L, receivedCapsule));
 			current.gold = receivedGold;
 			current.gem = receivedGem;
 			current.contribution = receivedContribution;
@@ -158,7 +171,11 @@ namespace Game2
 			current.ledger.removeAllElements();
 			for (int i = 0; i < receivedLedger.size(); i++)
 			{
-				current.ledger.addElement(receivedLedger.elementAt(i));
+				ClanLedgerEntry entry = receivedLedger.elementAt(i) as ClanLedgerEntry;
+				if (isPlayerContributionEntry(entry))
+				{
+					current.ledger.addElement(entry);
+				}
 			}
 			current.hasMore = false;
 			current.nextLedgerCursor = 0L;
@@ -185,6 +202,12 @@ namespace Game2
 		{
 			try
 			{
+				if (GameCanvas.panel != null && GameCanvas.panel.isTreasuryHistory
+					&& Char.myCharz().clan != null
+					&& !isLedgerCurrent(Char.myCharz().clan.ID))
+				{
+					Service.gI().clanTreasuryLedger(0L);
+				}
 				if (GameCanvas.panel != null && (GameCanvas.panel.isTreasury ||
 					GameCanvas.panel.isTreasuryHistory || GameCanvas.panel.isClanInfo))
 				{

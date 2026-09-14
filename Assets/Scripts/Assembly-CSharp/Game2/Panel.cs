@@ -1067,6 +1067,11 @@ namespace Game2
 
         private void paintEffectItem(mGraphics g, Item item, int x, int y)
         {
+            paintEffectItem(g, item, x, y, 0, 0);
+        }
+
+        private void paintEffectItem(mGraphics g, Item item, int x, int y, int cellWidth, int cellHeight)
+        {
             try
             {
                 if (!ModFunc.isEffectInven) return;
@@ -1125,11 +1130,13 @@ namespace Game2
                         }
                         if (array2 != null)
                         {
-                            g.drawImage(array2[GameCanvas.gameTick / 4 % 7], x + 2, y + 2);
+                            paintItemEffectFrame(g, array2[GameCanvas.gameTick / 4 % 7], x + 2, y + 2,
+                                x, y, cellWidth, cellHeight);
                         }
                         if (array != null)
                         {
-                            g.drawImage(array[GameCanvas.gameTick / 4 % 7], x - 1, y - 1);
+                            paintItemEffectFrame(g, array[GameCanvas.gameTick / 4 % 7], x - 1, y - 1,
+                                x, y, cellWidth, cellHeight);
                         }
                     }
                 }
@@ -1138,6 +1145,21 @@ namespace Game2
             {
                 Debug.LogException(exception);
             }
+        }
+
+        private static void paintItemEffectFrame(mGraphics g, Image image, int defaultX, int defaultY,
+            int cellX, int cellY, int cellWidth, int cellHeight)
+        {
+            if (image == null)
+            {
+                return;
+            }
+            if (cellWidth > 0 && cellHeight > 0)
+            {
+                g.drawImageScaleInClip(image, cellX, cellY, cellWidth, cellHeight);
+                return;
+            }
+            g.drawImage(image, defaultX, defaultY);
         }
 
         public void init()
@@ -2071,6 +2093,37 @@ namespace Game2
             partID = new int[3] { m.head, m.leg, m.body };
             currItem = null;
             charInfo = null;
+        }
+
+        public void addClanLedgerDetail(ClanLedgerEntry entry)
+        {
+            if (!ClanTreasury.isPlayerContributionEntry(entry))
+            {
+                return;
+            }
+            bool isGem = entry.currencyType == ClanTreasury.CURRENCY_GEM;
+            string currencyText = isGem ? "Ngọc" : "Vàng";
+            string text = "|0|1|" + safeClanLedgerActorName(entry);
+            text += "\n|1|Đóng góp " + currencyText;
+            text += "\n--";
+            text += "\n|5|Số lượng: +" + Res.formatNumber(entry.amount);
+            text += "\n|4|Số dư " + currencyText.ToLower() + " bang: " + Res.formatNumber(entry.balanceAfter);
+            text += "\n|6|Thời gian: " + formatClanLedgerDate(entry.createdAt);
+            cp = new ChatPopup();
+            popUpDetailInit(cp, text);
+            partID = null;
+            for (int i = 0; i < myMember.size(); i++)
+            {
+                Member clanMember = (Member)myMember.elementAt(i);
+                if (clanMember.ID == entry.actorId)
+                {
+                    partID = new int[3] { clanMember.head, clanMember.leg, clanMember.body };
+                    break;
+                }
+            }
+            currItem = null;
+            charInfo = null;
+            idIcon = -1;
         }
 
         public void addClanDetail(Clan cl)
@@ -4061,7 +4114,7 @@ else
             {
                 currentListLength = ClanTreasury.current.ledger.size() + 2;
                 clanInfo = "Lịch sử đóng góp";
-                clanReport = (ClanTreasury.current.ledger.size() == 0) ? "Chưa có giao dịch" : string.Empty;
+                clanReport = (ClanTreasury.current.ledger.size() == 0) ? "Chưa có đóng góp vàng hoặc ngọc" : string.Empty;
             }
             else if (isTreasury)
             {
@@ -4131,12 +4184,11 @@ else
             }
             else if (isClanInfo || isClanPotential || isClanRanking)
             {
-                clansOption = new string[4][]
+                clansOption = new string[3][]
                 {
                     new string[2] { "Thông", "tin" },
                     new string[2] { "Kho", "bang" },
-                    new string[2] { "Tiềm", "năng" },
-                    new string[2] { "Xếp", "hạng" }
+                    new string[2] { "Tiềm", "năng" }
                 };
             }
             else if (isTreasuryHistory)
@@ -4145,7 +4197,7 @@ else
                 {
                     new string[2] { "Góp", "vàng" },
                     new string[2] { "Góp", "ngọc" },
-                    new string[1] { "Lịch sử" }
+                    new string[2] { "Làm", "mới" }
                 };
             }
             else if (!isViewMember)
@@ -4265,10 +4317,7 @@ else
             cmy = (cmtoY = 0);
             selected = GameCanvas.isTouch ? -1 : 0;
             cSelected = -1;
-            if (!ClanTreasury.isSnapshotReady(Char.myCharz().clan.ID))
-            {
-                Service.gI().clanTreasuryView();
-            }
+            Service.gI().clanTreasuryView();
             if (!ClanProgression.isReady(Char.myCharz().clan.ID))
             {
                 ClanProgression.requestSnapshot(true);
@@ -4314,10 +4363,7 @@ else
             cmy = (cmtoY = 0);
             selected = GameCanvas.isTouch ? -1 : 0;
             cSelected = -1;
-            if (!ClanTreasury.isSnapshotReady(Char.myCharz().clan.ID))
-            {
-                Service.gI().clanTreasuryView();
-            }
+            Service.gI().clanTreasuryView();
             if (!ClanProgression.isReady(Char.myCharz().clan.ID))
             {
                 ClanProgression.requestSnapshot(true);
@@ -4344,10 +4390,7 @@ else
             selected = GameCanvas.isTouch ? -1 : 0;
             cSelected = -1;
             ClanProgression.requestSnapshot(true);
-            if (!ClanTreasury.isSnapshotReady(Char.myCharz().clan.ID))
-            {
-                Service.gI().clanTreasuryView();
-            }
+            Service.gI().clanTreasuryView();
         }
 
         private void openClanTreasuryHistory()
@@ -4380,10 +4423,6 @@ else
             else if (tabIndex == 2)
             {
                 openClanPotential();
-            }
-            else if (tabIndex == 3)
-            {
-                openClanRanking();
             }
         }
 
@@ -6793,8 +6832,12 @@ else
 
         private void paintClans(mGraphics g)
         {
+            bool fixedHistoryHeader = isTreasuryHistory;
             g.setClip(xScroll, yScroll, wScroll, hScroll);
-            g.translate(-cmx, -cmy);
+            if (!fixedHistoryHeader)
+            {
+                g.translate(-cmx, -cmy);
+            }
             g.setColor(0);
 			if (isClanInfo)
 			{
@@ -6834,6 +6877,13 @@ else
 			}
             for (int j = 0; j < currentListLength; j++)
             {
+                if (fixedHistoryHeader && j == 2)
+                {
+                    int historyContentTop = yScroll + 2 * ITEM_HEIGHT;
+                    g.setClip(xScroll, historyContentTop, wScroll,
+                        System.Math.Max(1, hScroll - 2 * ITEM_HEIGHT));
+                    g.translate(-cmx, -cmy);
+                }
                 int num2 = xScroll;
                 int num3 = yScroll + j * ITEM_HEIGHT;
                 int num4 = 24;
@@ -6842,7 +6892,9 @@ else
                 int num7 = yScroll + j * ITEM_HEIGHT;
                 int num8 = wScroll - num4;
                 int num9 = ITEM_HEIGHT - 1;
-                if (num7 - cmy > yScroll + hScroll || num7 - cmy < yScroll - ITEM_HEIGHT)
+                int visibleTop = fixedHistoryHeader ? yScroll + 2 * ITEM_HEIGHT : yScroll;
+                if ((!fixedHistoryHeader || j >= 2)
+                    && (num7 - cmy > yScroll + hScroll || num7 - cmy < visibleTop - ITEM_HEIGHT))
                 {
                     continue;
                 }
@@ -7078,7 +7130,12 @@ else
             if (isTreasuryHistory)
             {
                 ClanLedgerEntry entry = (ClanLedgerEntry)ClanTreasury.current.ledger.elementAt(row - 2);
-                string currencyText = entry.currencyType == ClanTreasury.CURRENCY_GEM ? "Ngọc" : "Vàng";
+                if (!ClanTreasury.isPlayerContributionEntry(entry))
+                {
+                    return true;
+                }
+                bool isGem = entry.currencyType == ClanTreasury.CURRENCY_GEM;
+                string currencyText = isGem ? "Ngọc" : "Vàng";
                 int avatarWidth = 24;
                 g.setColor(9993045);
                 g.fillRect(rowX, rowY, avatarWidth, rowH);
@@ -7086,18 +7143,19 @@ else
                 g.fillRect(rowX + avatarWidth + 2, rowY, rowW - avatarWidth - 2, rowH, 4);
                 paintClanLedgerAvatar(g, entry.actorId, rowX, rowY);
                 int textX = rowX + avatarWidth + 7;
-                mFont amountFont = entry.currencyType == ClanTreasury.CURRENCY_GEM ? mFont.tahoma_7b_green2 : mFont.tahoma_7b_yellow;
-                Image currencyIcon = entry.currencyType == ClanTreasury.CURRENCY_GEM ? imgLuong : imgXu;
+                mFont amountFont = isGem ? mFont.tahoma_7b_green2 : mFont.tahoma_7b_yellow;
+                Image currencyIcon = isGem ? imgLuong : imgXu;
                 string amountText = "+" + Res.formatNumber(entry.amount);
                 int iconRight = rowX + rowW - 5;
-                int iconWidth = currencyIcon == null ? 0 : currencyIcon.getWidth();
+                int iconWidth = (currencyIcon == null) ? 0 : currencyIcon.getWidth();
                 int amountRight = iconRight - iconWidth - 3;
-                int titleRight = amountRight - amountFont.getWidth(amountText) - 4;
-                g.setClip(textX, rowY, System.Math.Max(1, titleRight - textX), rowH);
-                mFont.tahoma_7b_dark.drawString(g, entry.actorName + " - Góp " + currencyText.ToLower(), textX, rowY, mFont.LEFT);
+                int titleWidth = System.Math.Max(0, amountRight - amountFont.getWidth(amountText) - textX - 4);
+                string title = fitClanLedgerText(mFont.tahoma_7b_dark,
+                    safeClanLedgerActorName(entry) + " đã góp " + currencyText, titleWidth);
+                mFont.tahoma_7b_dark.drawString(g, title, textX, rowY, mFont.LEFT);
                 mFont.tahoma_7_grey.drawString(g, formatClanLedgerDate(entry.createdAt), textX, rowY + 11, mFont.LEFT);
-                g.setClip(xScroll, yScroll + cmy, wScroll, hScroll);
-                amountFont.drawString(g, amountText, amountRight, rowY, mFont.RIGHT);
+                int amountY = rowY + (rowH - amountFont.getHeight()) / 2;
+                amountFont.drawString(g, amountText, amountRight, amountY, mFont.RIGHT);
                 if (currencyIcon != null)
                 {
                     g.drawImage(currencyIcon, iconRight, rowY + rowH / 2, mGraphics.VCENTER | mGraphics.RIGHT);
@@ -7130,6 +7188,41 @@ else
                 g.fillRect(cellX, rowY + 1, cellW, cellH - 1);
             }
             return true;
+        }
+
+        private static string safeClanLedgerActorName(ClanLedgerEntry entry)
+        {
+            string actorName = (entry == null) ? string.Empty : entry.actorName;
+            if (actorName == null)
+            {
+                return "Người chơi";
+            }
+            actorName = actorName.Replace('\r', ' ').Replace('\n', ' ').Replace('|', ' ').Trim();
+            return (actorName.Length == 0) ? "Người chơi" : actorName;
+        }
+
+        private static string fitClanLedgerText(mFont font, string value, int maxWidth)
+        {
+            if (string.IsNullOrEmpty(value) || maxWidth <= 0)
+            {
+                return string.Empty;
+            }
+            if (font.getWidth(value) <= maxWidth)
+            {
+                return value;
+            }
+            const string ellipsis = "...";
+            if (font.getWidth(ellipsis) > maxWidth)
+            {
+                return string.Empty;
+            }
+            int length = 0;
+            while (length < value.Length
+                && font.getWidth(value.Substring(0, length + 1) + ellipsis) <= maxWidth)
+            {
+                length++;
+            }
+            return (length == 0) ? ellipsis : value.Substring(0, length) + ellipsis;
         }
 
         private void paintClanInfoContent(mGraphics g)
@@ -7279,9 +7372,15 @@ else
                 {
                     return;
                 }
+                int avatarHeight = System.Math.Max(1, ITEM_HEIGHT - 1);
+                if (!setClanMemberAvatarClip(g, x, y, avatarHeight))
+                {
+                    return;
+                }
                 if (clanMember.headICON != -1)
                 {
-                    SmallImage.drawSmallImage(g, clanMember.headICON, x, y, 0, 0);
+                    SmallImage.drawSmallImage(g, clanMember.headICON, x + 12, y + avatarHeight / 2,
+                        0, StaticObj.VCENTER_HCENTER);
                     return;
                 }
                 int avatarHead = clanMember.head;
@@ -7293,13 +7392,21 @@ else
                         avatarHead = liveHead;
                     }
                 }
+                if ((GameScr.parts == null || avatarHead < 0 || avatarHead >= GameScr.parts.Length
+                    || GameScr.parts[avatarHead] == null) && GameScr.parts != null
+                    && GameScr.parts.Length > 0 && GameScr.parts[0] != null)
+                {
+                    avatarHead = 0;
+                }
                 if (GameScr.parts != null && avatarHead >= 0 && avatarHead < GameScr.parts.Length && GameScr.parts[avatarHead] != null)
                 {
                     Part part = GameScr.parts[avatarHead];
                     int frame = Char.CharInfo[0][0][0];
                     if (part.pi != null && frame >= 0 && frame < part.pi.Length && part.pi[frame] != null)
                     {
-                        SmallImage.drawSmallImage(g, part.pi[frame].id, x + part.pi[frame].dx, y + 3 + part.pi[frame].dy, 0, 0);
+                        SmallImage.drawSmallImage(g, part.pi[frame].id,
+                            x + 12 + Char.CharInfo[0][0][1] + part.pi[frame].dx - 3,
+                            y + avatarHeight, 0, mGraphics.LEFT | mGraphics.BOTTOM);
                     }
                 }
             }
@@ -7307,6 +7414,41 @@ else
             {
                 // Một avatar lỗi không được làm mất toàn bộ danh sách.
             }
+            finally
+            {
+                restoreClanListClip(g);
+            }
+        }
+
+        private bool setClanMemberAvatarClip(mGraphics g, int x, int y, int avatarHeight)
+        {
+            int listTop = yScroll + (isTreasuryHistory ? 2 * ITEM_HEIGHT : 0);
+            int listBottom = yScroll + hScroll;
+            int rowScreenLeft = x - cmx;
+            int rowScreenTop = y - cmy;
+            int clipLeft = System.Math.Max(xScroll, rowScreenLeft);
+            int clipTop = System.Math.Max(listTop, rowScreenTop);
+            int clipRight = System.Math.Min(xScroll + wScroll, rowScreenLeft + 24);
+            int clipBottom = System.Math.Min(listBottom, rowScreenTop + avatarHeight);
+            if (clipRight <= clipLeft || clipBottom <= clipTop)
+            {
+                return false;
+            }
+            g.setClip(clipLeft + cmx, clipTop + cmy,
+                clipRight - clipLeft, clipBottom - clipTop);
+            return true;
+        }
+
+        private void restoreClanListClip(mGraphics g)
+        {
+            int clipTop = yScroll;
+            int clipHeight = hScroll;
+            if (isTreasuryHistory)
+            {
+                clipTop += 2 * ITEM_HEIGHT;
+                clipHeight = System.Math.Max(1, hScroll - 2 * ITEM_HEIGHT);
+            }
+            g.setClip(xScroll, clipTop + cmy, wScroll, clipHeight);
         }
 
         private void paintClanLedgerAvatar(mGraphics g, long actorId, int x, int y)
@@ -7786,12 +7928,12 @@ for (int i = 0; i < arrItemBody.Length; i++)
     bool isSelected = (i == selected);
     g.setColor(getEquipmentCellColor(item, isSelected));
     g.fillRect(x, y, bodyCellW, bodyCellH - 1);
-    // Use the same animated bg/eff frames as the enhancement panel before the icon is drawn.
-    paintEffectItem(g, item, x, y);
+    paintInventoryGridEffect(g, item, x, y, bodyCellW, bodyCellH - 1);
     paintEquipmentCellFrame(g, item, x, y, bodyCellW, bodyCellH - 1, isSelected);
     if (item != null && item.template != null)
     {
         SmallImage.drawSmallImage(g, item.template.iconID, x + bodyCellW / 2, y + bodyCellH / 2, 0, 3);
+        paintInventoryGridItemMarkers(g, item, x, y, bodyCellW, bodyCellH - 1);
     }
 }
 int bagCols = 5;
@@ -7811,12 +7953,12 @@ for (int i = 0; i < arrItemBag.Length; i++)
     bool isSelected = (arrItemBody.Length + i == selected);
     g.setColor(getEquipmentCellColor(item, isSelected, 11837316));
     g.fillRect(x, y, bagCellW, bagCellH - 1);
-    // Use the same animated bg/eff frames as the enhancement panel before the icon is drawn.
-    paintEffectItem(g, item, x, y);
+    paintInventoryGridEffect(g, item, x, y, bagCellW, bagCellH - 1);
     paintEquipmentCellFrame(g, item, x, y, bagCellW, bagCellH - 1, isSelected);
     if (item != null && item.template != null)
     {
         SmallImage.drawSmallImage(g, item.template.iconID, x + bagCellW / 2, y + bagCellH / 2, 0, 3);
+        paintInventoryGridItemMarkers(g, item, x, y, bagCellW, bagCellH - 1);
         if (item.quantity > 1)
         {
             mFont.tahoma_7_yellow.drawString(g, item.quantity.ToString(), x + bagCellW - 1, y + bagCellH - mFont.tahoma_7_yellow.getHeight(), 1, mFont.tahoma_7b_dark);
@@ -7830,6 +7972,39 @@ paintScrollArrow(g);
                 Debug.LogError("Error in paintInventory: " + ex);
             }
             paintScrollArrow(g);
+        }
+
+        private void paintInventoryGridEffect(mGraphics g, Item item, int x, int y, int width, int height)
+        {
+            if (!ModFunc.isEffectInven || item == null)
+            {
+                return;
+            }
+            paintEffectItem(g, item, x, y, width, height);
+        }
+
+        private void paintInventoryGridItemMarkers(mGraphics g, Item item, int x, int y, int width, int height)
+        {
+            if (item == null || item.itemOption == null)
+            {
+                return;
+            }
+            for (int i = 0; i < item.itemOption.Length; i++)
+            {
+                ItemOption option = item.itemOption[i];
+                if (option != null && option.optionTemplate != null)
+                {
+                    paintOptItem(g, option.optionTemplate.id, option.param, x, y, width, height);
+                }
+            }
+            for (int i = 0; i < item.itemOption.Length; i++)
+            {
+                ItemOption option = item.itemOption[i];
+                if (option != null && option.optionTemplate != null)
+                {
+                    paintOptSlotItem(g, option.optionTemplate.id, option.param, x, y, width, height);
+                }
+            }
         }
 
         private void paintTab(mGraphics g)
@@ -11272,6 +11447,18 @@ else
                     if (selected == 2)
                     {
                         Service.gI().clanItemStorageView();
+                    }
+                }
+                else if (isTreasuryHistory && selected >= 2
+                    && selected - 2 < ClanTreasury.current.ledger.size())
+                {
+                    ClanLedgerEntry entry = (ClanLedgerEntry)ClanTreasury.current.ledger.elementAt(selected - 2);
+                    if (ClanTreasury.isPlayerContributionEntry(entry))
+                    {
+                        MyVector options = new MyVector();
+                        options.addElement(new Command(mResources.CLOSE, this, 8000, null));
+                        GameCanvas.menu.startAt(options, X, (selected + 1) * ITEM_HEIGHT - cmy + yScroll);
+                        addClanLedgerDetail(entry);
                     }
                 }
                 else if (isSearchClan)

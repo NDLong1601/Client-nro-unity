@@ -990,6 +990,46 @@ namespace Game2
 			}
 		}
 
+		public void drawImageScaleInClip(Image image, int x, int y, int w, int h)
+		{
+			if (image == null || w <= 0 || h <= 0)
+			{
+				return;
+			}
+			x *= zoomLevel;
+			y *= zoomLevel;
+			w *= zoomLevel;
+			h *= zoomLevel;
+			if (isTranslate)
+			{
+				x += translateX;
+				y += translateY;
+			}
+			Rect rect = new Rect(x, y, w, h);
+			if (!isClip)
+			{
+				Graphics.DrawTexture(rect, image.texture);
+				return;
+			}
+			int num = clipX;
+			int num2 = clipY;
+			if (isTranslate)
+			{
+				num += clipTX;
+				num2 += clipTY;
+			}
+			Rect rect2 = intersectRect(rect, new Rect(num, num2, clipW, clipH));
+			if (rect2.width <= 0f || rect2.height <= 0f)
+			{
+				return;
+			}
+			float num3 = (rect2.x - rect.x) / rect.width;
+			float num4 = (rect2.y - rect.y) / rect.height;
+			float num5 = rect2.width / rect.width;
+			float num6 = rect2.height / rect.height;
+			Graphics.DrawTexture(rect2, image.texture, new Rect(num3, 1f - num4 - num6, num5, num6), 0, 0, 0, 0);
+		}
+
 		public static int getImageWidth(Image image)
 		{
 			return image.getWidth();

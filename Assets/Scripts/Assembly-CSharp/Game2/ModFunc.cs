@@ -1304,7 +1304,6 @@ namespace Game2
 
 		public void Paint(mGraphics g)
 		{
-			g.drawImage(imgLogoBig, GameCanvas.w / 2, 30, 3);
 			int imageWidth = mGraphics.getImageWidth(GameScr.imgHP);
 			int imageWidth2 = mGraphics.getImageWidth(GameScr.imgMP);
 			mFont.tahoma_7_red.drawStringBorder(g, NinjaUtil.getMoneys(Char.myCharz().cHP), 84 + imageWidth / 2, 4, mFont.CENTER, mFont.tahoma_7_grey);
