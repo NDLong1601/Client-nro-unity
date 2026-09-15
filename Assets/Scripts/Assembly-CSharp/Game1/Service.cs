@@ -436,6 +436,147 @@ namespace Game1
 			}
 		}
 
+		public void openFriendSocialV2()
+		{
+			FriendSocialState.gI().MarkCapabilityMissing();
+			friend(0, -1);
+		}
+
+		public bool isFriendSocialV2Ready()
+		{
+			return FriendSocialState.gI().SupportsSocialV2;
+		}
+
+		public void searchFriendSocialV2(int requestToken, int cursor, string query)
+		{
+			FriendSocialState state = FriendSocialState.gI();
+			if (!state.SupportsSocialV2 || (state.Search.IsLoading && cursor != 0) || requestToken < 0 || cursor < 0 || query == null)
+			{
+				return;
+			}
+			state.BeginSearch(requestToken, cursor);
+			if (!sendFriendSocialV2Action(4, delegate(myWriter writer)
+			{
+				writer.writeInt(requestToken);
+				writer.writeInt(cursor);
+				writer.writeUTF(query);
+			}))
+			{
+				state.Search.CancelLoading(requestToken);
+			}
+		}
+
+		public bool sendFriendSocialV2Request(int targetPlayerId)
+		{
+			if (!isFriendSocialV2Ready() || targetPlayerId <= 0)
+			{
+				return false;
+			}
+			return sendFriendSocialV2Action(5, delegate(myWriter writer) { writer.writeInt(targetPlayerId); });
+		}
+
+		public void loadFriendSocialV2Inbox(int requestToken, int cursor)
+		{
+			FriendSocialState state = FriendSocialState.gI();
+			if (!state.SupportsSocialV2 || state.Inbox.IsLoading || requestToken < 0 || cursor < 0)
+			{
+				return;
+			}
+			state.BeginInbox(requestToken, cursor);
+			if (!sendFriendSocialV2Action(6, delegate(myWriter writer)
+			{
+				writer.writeInt(requestToken);
+				writer.writeInt(cursor);
+			}))
+			{
+				state.Inbox.CancelLoading(requestToken);
+			}
+		}
+
+		public bool acceptFriendSocialV2Request(long requestId)
+		{
+			FriendSocialState state = FriendSocialState.gI();
+			if (!state.SupportsSocialV2 || !state.BeginInboxOperation(7, requestId))
+			{
+				return false;
+			}
+			bool sent = sendFriendSocialV2Action(7, delegate(myWriter writer) { writer.writeLong(requestId); });
+			if (!sent)
+			{
+				state.CompleteInboxOperation(7, false);
+			}
+			return sent;
+		}
+
+		public bool rejectFriendSocialV2Request(long requestId)
+		{
+			FriendSocialState state = FriendSocialState.gI();
+			if (!state.SupportsSocialV2 || !state.BeginInboxOperation(8, requestId))
+			{
+				return false;
+			}
+			bool sent = sendFriendSocialV2Action(8, delegate(myWriter writer) { writer.writeLong(requestId); });
+			if (!sent)
+			{
+				state.CompleteInboxOperation(8, false);
+			}
+			return sent;
+		}
+
+		public void loadFriendSocialV2Profile(int friendId)
+		{
+			if (isFriendSocialV2Ready() && friendId > 0)
+			{
+				sendFriendSocialV2Action(9, delegate(myWriter writer) { writer.writeInt(friendId); });
+			}
+		}
+
+		public void shareFriendSocialV2Location(int friendId)
+		{
+			if (!isFriendSocialV2Ready() || friendId <= 0)
+			{
+				return;
+			}
+			FriendSocialState.gI().QueueLocationRecipient(friendId);
+			sendFriendSocialV2Action(10, delegate(myWriter writer) { writer.writeInt(friendId); });
+		}
+
+		public bool sendFriendSocialV2Chat(string text, int friendId)
+		{
+			if (!isFriendSocialV2Ready() || friendId <= 0 || string.IsNullOrEmpty(text))
+			{
+				return false;
+			}
+			FriendSocialState.gI().QueueOutgoingChat(friendId);
+			chatPlayer(text, friendId);
+			return true;
+		}
+
+		private bool sendFriendSocialV2Action(int action, Action<myWriter> payloadWriter)
+		{
+			Message message = null;
+			try
+			{
+				message = new Message(-80);
+				message.writer().writeByte(action);
+				payloadWriter(message.writer());
+				session.sendMessage(message);
+				return true;
+			}
+			catch (Exception ex)
+			{
+				Cout.println(ex.Message + ex.StackTrace);
+				return false;
+			}
+			finally
+			{
+				if (message != null)
+				{
+					message.cleanup();
+				}
+			}
+		}
+
 		public void clanValueView()
 		{
 			clanPhase5ReadOnly(ClanValue.REQUEST_VIEW, 0, 0);
@@ -1849,7 +1990,7 @@ namespace Game1
 
 		public void chatPlayer(string text, int id)
 		{
-			Res.outz("chat player text = " + text);
+			Res.outz("chat player");
 			Message message = null;
 			try
 			{

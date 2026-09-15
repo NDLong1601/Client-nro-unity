@@ -92,6 +92,10 @@ namespace Game2
 
 		private Vector2 lastMousePos;
 
+		private TField socialDesktopTextField;
+
+		private const string SOCIAL_DESKTOP_TEXT_CONTROL = "SocialV2DesktopTextFieldGame2";
+
 		public static int a = 1;
 
 		public static bool isCompactDevice = true;
@@ -328,6 +332,11 @@ namespace Game2
             // During a Unity domain reload OnGUI can run before the game canvas is rebuilt.
             // Ignore that frame instead of dereferencing a not-yet-initialized canvas.
             if (GameMidlet.gameCanvas == null) return;
+			if (Management.TryHandleTabShortcut(Event.current))
+			{
+				clearFocusedSocialTextField();
+				return;
+			}
             if (Input.GetMouseButtonDown(0))
 			{
 				Vector3 mousePosition = Input.mousePosition;
@@ -348,6 +357,10 @@ namespace Game2
 				lastMousePos.x = mousePosition3.x / (float)mGraphics.zoomLevel;
 				lastMousePos.y = mousePosition3.y / (float)mGraphics.zoomLevel + (float)mGraphics.addYWhenOpenKeyBoard;
 				GameMidlet.gameCanvas.pointerReleased((int)(mousePosition3.x / (float)mGraphics.zoomLevel), (int)(((float)Screen.height - mousePosition3.y) / (float)mGraphics.zoomLevel) + mGraphics.addYWhenOpenKeyBoard);
+			}
+			if (updateDesktopImeTextField(Event.current))
+			{
+				return;
 			}
 			if (Event.current.type == EventType.KeyDown)
 			{
@@ -381,13 +394,128 @@ namespace Game2
 			}
 			if (isPC)
 			{
-				GameMidlet.gameCanvas.scrollMouse((int)(Input.GetAxis("Mouse ScrollWheel") * 10f));
 				int num3 = (int)Input.mousePosition.x;
 				float y = Input.mousePosition.y;
 				int x = num3 / mGraphics.zoomLevel;
 				int y2 = (Screen.height - (int)y) / mGraphics.zoomLevel;
 				GameMidlet.gameCanvas.pointerMouse(x, y2);
+				GameMidlet.gameCanvas.scrollMouse((int)(Input.GetAxis("Mouse ScrollWheel") * 10f));
 			}
+		}
+
+		private bool updateDesktopImeTextField(Event currentEvent)
+		{
+			TField field = TField.currentTField;
+			if (!Main.isPC || field == null || !field.isFocus
+				|| (field.name != Panel.SOCIAL_V2_CHAT_INPUT && field.name != Panel.SOCIAL_V2_SEARCH_INPUT))
+			{
+				clearDesktopImeTextField();
+				return false;
+			}
+
+			Input.imeCompositionMode = IMECompositionMode.On;
+			Input.compositionCursorPos = new Vector2(field.x * mGraphics.zoomLevel,
+				Screen.height - (field.y + field.height) * mGraphics.zoomLevel);
+			bool keyDown = currentEvent.type == EventType.KeyDown;
+			bool submit = keyDown
+				&& (currentEvent.keyCode == KeyCode.Return || currentEvent.keyCode == KeyCode.KeypadEnter);
+			bool fieldChanged = socialDesktopTextField != field;
+			if (fieldChanged)
+			{
+				GUI.FocusControl(null);
+				socialDesktopTextField = field;
+			}
+
+			int maxLength = (field.name == Panel.SOCIAL_V2_SEARCH_INPUT) ? 32 : 80;
+			Rect inputRect = new Rect(field.x * mGraphics.zoomLevel,
+				(field.y - mGraphics.addYWhenOpenKeyBoard) * mGraphics.zoomLevel,
+				System.Math.Max(1, field.width * mGraphics.zoomLevel),
+				System.Math.Max(1, field.height * mGraphics.zoomLevel));
+			GUI.SetNextControlName(SOCIAL_DESKTOP_TEXT_CONTROL);
+			Color previousGuiColor = GUI.color;
+			string currentText = field.getText() ?? string.Empty;
+			string updatedText;
+			try
+			{
+				GUI.color = Color.clear;
+				updatedText = GUI.TextField(inputRect, currentText, maxLength);
+			}
+			finally
+			{
+				GUI.color = previousGuiColor;
+			}
+			if (fieldChanged || GUI.GetNameOfFocusedControl() != SOCIAL_DESKTOP_TEXT_CONTROL)
+			{
+				GUI.FocusControl(SOCIAL_DESKTOP_TEXT_CONTROL);
+			}
+			if (updatedText != currentText)
+			{
+				field.setText(updatedText);
+			}
+
+			if (submit)
+			{
+				GameCanvas.keyPressed[15] = true;
+				if (currentEvent.type != EventType.Used)
+				{
+					currentEvent.Use();
+				}
+				return true;
+			}
+			if (keyDown)
+			{
+				if (currentEvent.type != EventType.Used)
+				{
+					currentEvent.Use();
+				}
+				return true;
+			}
+			return false;
+		}
+
+		internal static string getSocialDesktopInputPreview(TField field)
+		{
+			string committedText = (field == null) ? string.Empty : (field.getText() ?? string.Empty);
+			if (!isPC || field == null || !field.isFocus || TField.currentTField != field)
+			{
+				return committedText;
+			}
+			string composition = Input.compositionString ?? string.Empty;
+			if (composition.Length == 0)
+			{
+				return committedText;
+			}
+			int maxLength = (field.name == Panel.SOCIAL_V2_SEARCH_INPUT) ? 32 : 80;
+			int remaining = maxLength - committedText.Length;
+			if (remaining <= 0)
+			{
+				return committedText;
+			}
+			if (composition.Length > remaining)
+			{
+				composition = composition.Substring(0, remaining);
+			}
+			return committedText + composition;
+		}
+
+		private void clearFocusedSocialTextField()
+		{
+			TField field = TField.currentTField;
+			if (field != null && (field.name == Panel.SOCIAL_V2_CHAT_INPUT || field.name == Panel.SOCIAL_V2_SEARCH_INPUT))
+			{
+				field.setFocusWithKb(false);
+			}
+			clearDesktopImeTextField();
+		}
+
+		private void clearDesktopImeTextField()
+		{
+			if (socialDesktopTextField != null)
+			{
+				GUI.FocusControl(null);
+				socialDesktopTextField = null;
+			}
+			Input.imeCompositionMode = IMECompositionMode.Auto;
 		}
 
 		private void OnApplicationQuit()

@@ -672,10 +672,13 @@ namespace Game1
 						{
 							panel2.updateKey();
 						}
-						if (isPointer(panel.X + panel.W, panel.Y, w - panel.W * 2, panel.H) && isPointerJustRelease && panel.isDoneCombine)
-						{
-							panel.hide();
-						}
+                        if (isPointer(panel.X + panel.W, panel.Y, w - panel.W * 2, panel.H) && isPointerJustRelease && panel.isDoneCombine)
+                        {
+                            if (!panel.tryCloseFriendSocialChatPanel2())
+                            {
+                                panel.hide();
+                            }
+                        }
 					}
 					if (!isLoading)
 					{
@@ -994,6 +997,7 @@ namespace Game1
 				GameScr.vClan.removeAllElements();
 				GameScr.vFriend.removeAllElements();
 				GameScr.vEnemies.removeAllElements();
+				FriendSocialState.gI().Reset();
 				TileMap.vCurrItem.removeAllElements();
 				BackgroudEffect.vBgEffect.removeAllElements();
 				EffecMn.vEff.removeAllElements();
@@ -1922,7 +1926,7 @@ namespace Game1
 		public void keyPressedz(int keyCode)
 		{
 			lastTimePress = mSystem.currentTimeMillis();
-			if ((keyCode >= 48 && keyCode <= 57) || (keyCode >= 65 && keyCode <= 122) || keyCode == 10 || keyCode == 8 || keyCode == 13 || keyCode == 32 || keyCode == 31)
+			if ((keyCode >= 48 && keyCode <= 57) || (keyCode >= 65 && keyCode <= 122) || (keyCode > 122 && keyCode <= char.MaxValue) || keyCode == 10 || keyCode == 8 || keyCode == 13 || keyCode == 32 || keyCode == 31)
 			{
 				keyAsciiPress = keyCode;
 			}
@@ -2234,6 +2238,13 @@ namespace Game1
 		public void scrollMouse(int a)
 		{
 			pXYScrollMouse = a;
+			if (panel2 != null && panel2.isShow
+				&& pxMouse >= panel2.X && pxMouse <= panel2.X + panel2.W
+				&& pyMouse >= panel2.Y && pyMouse <= panel2.Y + panel2.H)
+			{
+				panel2.updateScroolMouse(a);
+				return;
+			}
 			if (panel != null && panel.isShow)
 			{
 				panel.updateScroolMouse(a);

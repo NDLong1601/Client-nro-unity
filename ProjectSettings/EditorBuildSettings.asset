@@ -11,7 +11,10 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Scenes/NRO2.unity
     guid: 9c2d00f4c6a78db4a89c112ce6b4a9b7
-  - enabled: 0
+  - enabled: 1
     path: Assets/Scenes/NROL.unity
     guid: 49fd341ce20015241a99ee4d8be2b71d
+  - enabled: 1
+    path: Assets/Scenes/NROL1.unity
+    guid: 2d7fe190cfdaed243bcdf0cbebed76f3
   m_configObjects: {}

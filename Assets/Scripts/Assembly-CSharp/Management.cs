@@ -1,5 +1,7 @@
 ﻿using UnityEngine.SceneManagement;
 
+using UnityEngine;
+
 public class Management
 {
     public static bool isLogo = true;
@@ -42,6 +44,18 @@ public class Management
         {
             SceneManager.LoadScene(SceneNames[index], LoadSceneMode.Additive);
         }
+    }
+
+    public static bool TryHandleTabShortcut(Event currentEvent)
+    {
+        if (currentEvent == null || currentEvent.type != EventType.KeyDown || currentEvent.keyCode != KeyCode.F2)
+        {
+            return false;
+        }
+
+        ChangeTab(tab == TabType.Tab1 ? 1 : 0);
+        currentEvent.Use();
+        return true;
     }
 }
 

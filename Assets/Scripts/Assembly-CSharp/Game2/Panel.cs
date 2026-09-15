@@ -565,6 +565,123 @@ namespace Game2
 
         public const int TYPE_FRIEND = 11;
 
+        private const int FRIEND_SOCIAL_MODE_FRIENDS = 0;
+
+        private const int FRIEND_SOCIAL_MODE_SEARCH = 1;
+
+        private const int FRIEND_SOCIAL_MODE_INBOX = 2;
+
+        private const int FRIEND_SOCIAL_ROW_HEIGHT = 24;
+
+        private const int FRIEND_SOCIAL_MODE_BAR_HEIGHT = 24;
+
+        private const int FRIEND_SOCIAL_SEARCH_BAR_HEIGHT = 24;
+
+        private const int FRIEND_SOCIAL_LIST_HEADING_HEIGHT = 26;
+
+        private const int FRIEND_SOCIAL_TOOLBAR_ACTION_SIZE = 22;
+
+        private const int FRIEND_SOCIAL_ACTION_ICON_SIZE = 14;
+
+        private const int FRIEND_SOCIAL_SEARCH_INPUT_X_OFFSET = 48;
+
+        private const int FRIEND_SOCIAL_COLOR_SEARCH = 0x5170ff;
+
+        private const int FRIEND_SOCIAL_COLOR_MAIL_ACTIVE = 0x57aa05;
+
+        private const int FRIEND_SOCIAL_COLOR_REMOVE = 0xe43d30;
+
+        private const int FRIEND_SOCIAL_COLOR_INPUT_FOCUS = 0xfff4cf;
+
+        private const int FRIEND_SOCIAL_COLOR_ACTION_PANEL = 0xe6ded1;
+
+        private const int FRIEND_SOCIAL_COLOR_INPUT = 0xd7c9b5;
+
+        private const int FRIEND_SOCIAL_COLOR_BUTTON = 0xb9a17c;
+
+        private const int FRIEND_SOCIAL_COLOR_DIVIDER = 0x8f8374;
+
+        private const int FRIEND_SOCIAL_MEMBER_AVATAR_WIDTH = 24;
+
+        private const int FRIEND_SOCIAL_EMOJI_ACTION = 170490;
+
+        internal const string SOCIAL_V2_SEARCH_INPUT = "Tìm bạn";
+
+        internal const string SOCIAL_V2_CHAT_INPUT = "Nhắn tin bạn bè";
+
+        private static readonly string[] FRIEND_SOCIAL_EMOTICONS = new string[] { ":)", ":D", ";)", "<3", ":(", ":P" };
+
+        private const int FRIEND_SOCIAL_CHAT_COMPOSER_MIN_HEIGHT = 32;
+
+        private const int FRIEND_SOCIAL_CHAT_COMPOSER_MAX_HEIGHT = 68;
+
+        private sealed class FriendSocialChatBubble
+        {
+            public FriendChatMessage Message;
+            public string[] Lines;
+            public string SenderLabel;
+            public int Top;
+            public int Height;
+            public int Width;
+            public bool IsOutgoing;
+        }
+
+        private int friendSocialMode;
+
+        private readonly int[] friendSocialScrollOffsets = new int[3];
+
+        private int friendSocialSearchRequestToken;
+
+        private int friendSocialInboxRequestToken;
+
+        private string friendSocialSearchQuery = string.Empty;
+
+        private TField friendSocialSearchInput;
+
+        private bool friendSocialBottomReleaseSeen;
+
+        private bool friendSocialPointerDownAtBottom;
+
+        private static Image friendSocialSearchIcon;
+
+        private static Image friendSocialMailIcon;
+
+        private static Image friendSocialAddIcon;
+
+        private static Image friendSocialAcceptIcon;
+
+        private static Image friendSocialRemoveIcon;
+
+        private static Image friendSocialEmojiIcon;
+
+        private static Image friendSocialLocationIcon;
+
+        private static Image friendSocialSendIcon;
+
+        private bool friendSocialChatOnly;
+
+        private readonly List<FriendSocialChatBubble> friendSocialChatLayout = new List<FriendSocialChatBubble>();
+
+        private TField friendSocialChatInput;
+
+        private int friendSocialChatInputFriendId = -1;
+
+        private int friendSocialChatLayoutFriendId = -1;
+
+        private int friendSocialChatLayoutRevision = -1;
+
+        private int friendSocialChatLayoutWidth = -1;
+
+        private string friendSocialChatLayoutSenderName = string.Empty;
+
+        private int friendSocialChatContentHeight;
+
+        private bool friendSocialChatScrollToBottom;
+
+        private int friendSocialChatScrollFriendId = -1;
+
+        private int friendSocialChatComposerHeight = FRIEND_SOCIAL_CHAT_COMPOSER_MIN_HEIGHT;
+
         public const int TYPE_COMBINE = 12;
 
         public const int TYPE_GIAODICH = 13;
@@ -1450,11 +1567,43 @@ namespace Game2
 
         public void setTypeFriend()
         {
+            friendSocialChatOnly = false;
             type = 11;
             setType(0);
-            ITEM_HEIGHT = 24;
-            selected = (GameCanvas.isTouch ? (-1) : 0);
-            setTabFriend();
+            if (isFriendSocialV2Enabled())
+            {
+                friendSocialMode = FRIEND_SOCIAL_MODE_FRIENDS;
+                friendSocialBottomReleaseSeen = false;
+                friendSocialPointerDownAtBottom = false;
+                refreshFriendSocialScroll(restoreModeOffset: true);
+                selected = (GameCanvas.isTouch ? (-1) : 0);
+            }
+            else
+            {
+                ITEM_HEIGHT = 24;
+                selected = (GameCanvas.isTouch ? (-1) : 0);
+                setTabFriend();
+            }
+        }
+
+        public void setTypeFriendSocialChat()
+        {
+            configureFriendSocialChat(1);
+        }
+
+        private void configureFriendSocialChat(int panelPosition)
+        {
+            friendSocialChatOnly = true;
+            type = TYPE_FRIEND;
+            setType(panelPosition);
+            friendSocialChatScrollToBottom = true;
+            friendSocialChatLayoutFriendId = -1;
+            friendSocialChatLayoutRevision = -1;
+            friendSocialChatLayoutWidth = -1;
+            friendSocialChatLayoutSenderName = string.Empty;
+            friendSocialChatScrollFriendId = -1;
+            friendSocialChatComposerHeight = FRIEND_SOCIAL_CHAT_COMPOSER_MIN_HEIGHT;
+            selected = -1;
         }
 
         public void setTypeEnemy()
@@ -2393,7 +2542,6 @@ namespace Game2
                     case 8:
                     case 9:
                     case 10:
-                    case 11:
                     case 14:
                     case 15:
                     case 16:
@@ -2404,6 +2552,20 @@ namespace Game2
                     case 27:
                     case TYPE_PK_HISTORY:
                         updateKeyScrollView();
+                        break;
+                    case 11:
+                        if (friendSocialChatOnly)
+                        {
+                            updateKeyFriendSocialChat();
+                        }
+                        else if (isFriendSocialV2Enabled())
+                        {
+                            updateKeyFriendSocial();
+                        }
+                        else
+                        {
+                            updateKeyScrollView();
+                        }
                         break;
                     case 4:
                         updateKeyMap();
@@ -3046,8 +3208,21 @@ namespace Game2
         public void updateScroolMouse(int a)
         {
             bool flag = false;
-            if (GameCanvas.pxMouse > wScroll)
+            if (GameCanvas.pxMouse < xScroll || GameCanvas.pxMouse > xScroll + wScroll
+                || GameCanvas.pyMouse < yScroll || GameCanvas.pyMouse > yScroll + hScroll)
             {
+                return;
+            }
+            if (friendSocialChatOnly)
+            {
+                if (a != 0)
+                {
+                    cmtoY -= a * 12;
+                    cmtoY = System.Math.Max(0, System.Math.Min(cmyLim, cmtoY));
+                    cmy = cmtoY;
+                    cmRun = 0;
+                    cmdy = 0;
+                }
                 return;
             }
             if (indexMouse == -1)
@@ -6756,6 +6931,16 @@ else
 
         private void paintFriend(mGraphics g)
         {
+            if (friendSocialChatOnly)
+            {
+                paintFriendSocialChat(g);
+                return;
+            }
+            if (isFriendSocialV2Enabled())
+            {
+                paintFriendSocial(g);
+                return;
+            }
             g.setClip(xScroll, yScroll, wScroll, hScroll);
             g.translate(0, -cmy);
             g.setColor(0);
@@ -6963,10 +7148,7 @@ else
                 }
                 if (isViewMember)
                 {
-                    g.setColor((j != selected) ? 15196114 : 16383818);
-                    g.fillRect(num6, num7, num8, num9, 5);
-                    g.setColor((j != selected) ? 9993045 : 9541120);
-                    g.fillRect(num2, num3, num4, num5);
+                    paintMemberListRowBackground(g, num2, num3, num4 + num8, num5, j == selected);
                     Member member = ((this.member == null) ? ((Member)myMember.elementAt(j - 2)) : ((Member)this.member.elementAt(j - 2)));
                     paintClanMemberAvatar(g, member, num2, num3);
                     g.setClip(xScroll, yScroll + cmy, wScroll, hScroll);
@@ -7017,6 +7199,1313 @@ else
                 }
             }
             paintScrollArrow(g);
+        }
+
+        private void openFriendSocialChat(int friendId)
+        {
+            if (friendId <= 0)
+            {
+                return;
+            }
+            FriendSocialState state = FriendSocialState.gI();
+            FriendConversation existingConversation;
+            bool restoreScroll = state.Conversations.TryPeek(friendId, out existingConversation) && existingConversation.HasBeenOpened;
+            state.ActivateConversation(friendId);
+            Service.gI().loadFriendSocialV2Profile(friendId);
+            if (Equals(GameCanvas.panel) && GameCanvas.w > 2 * WIDTH_PANEL)
+            {
+                Panel chatPanel = GameCanvas.panel2;
+                if (chatPanel == null || !chatPanel.friendSocialChatOnly)
+                {
+                    chatPanel = new Panel();
+                    GameCanvas.panel2 = chatPanel;
+                    chatPanel.setTypeFriendSocialChat();
+                    chatPanel.friendSocialChatScrollToBottom = !restoreScroll;
+                    chatPanel.show();
+                }
+                else
+                {
+                    chatPanel.friendSocialChatScrollToBottom = !restoreScroll;
+                    chatPanel.friendSocialChatLayoutFriendId = -1;
+                }
+                GameCanvas.isFocusPanel2 = true;
+                return;
+            }
+            configureFriendSocialChat(0);
+            friendSocialChatScrollToBottom = !restoreScroll;
+        }
+
+        private void closeFriendSocialChat()
+        {
+            FriendSocialState state = FriendSocialState.gI();
+            int friendId = state.ActiveChatFriendId;
+            cancelFriendSocialChatInput();
+            state.DeactivateConversation(friendId);
+            if (Equals(GameCanvas.panel2))
+            {
+                GameCanvas.panel2 = null;
+                GameCanvas.isFocusPanel2 = false;
+            }
+            else
+            {
+                friendSocialChatOnly = false;
+                setTypeFriend();
+            }
+            GameCanvas.clearAllPointerEvent();
+            GameCanvas.clearKeyPressed();
+        }
+
+        public bool tryCloseFriendSocialChatPanel2()
+        {
+            Panel chatPanel = GameCanvas.panel2;
+            if (!Equals(GameCanvas.panel) || !isFriendSocialV2Enabled() || chatPanel == null
+                || !chatPanel.friendSocialChatOnly || !GameCanvas.isPointerJustRelease)
+            {
+                return false;
+            }
+            if (GameCanvas.isPointer(X, Y, W, H) || GameCanvas.isPointer(chatPanel.X, chatPanel.Y, chatPanel.W, chatPanel.H))
+            {
+                return false;
+            }
+            if (cp != null)
+            {
+                cp = null;
+                GameCanvas.clearAllPointerEvent();
+                return true;
+            }
+            chatPanel.closeFriendSocialChat();
+            return true;
+        }
+
+        private void updateKeyFriendSocialChat()
+        {
+            FriendSocialState state = FriendSocialState.gI();
+            int friendId = state.ActiveChatFriendId;
+            if (friendId <= 0)
+            {
+                closeFriendSocialChat();
+                return;
+            }
+            FriendConversation conversation = state.Conversations.GetOrCreate(friendId);
+            bool online = isFriendSocialChatOnline(friendId);
+            refreshFriendSocialChatLayout(conversation, friendId);
+            refreshFriendSocialChatScroll(conversation, friendId, online);
+            if (friendSocialChatInput != null && friendSocialChatInput.isFocus && GameCanvas.keyAsciiPress != 0)
+            {
+                friendSocialChatInput.keyPressed(GameCanvas.keyAsciiPress);
+                GameCanvas.keyAsciiPress = 0;
+                conversation.Draft = friendSocialChatInput.getText() ?? string.Empty;
+            }
+            if (Main.isPC && friendSocialChatInput != null && friendSocialChatInput.isFocus && GameCanvas.keyPressed[14])
+            {
+                GameCanvas.keyPressed[14] = false;
+                friendSocialChatInput.keyPressed(-8);
+                conversation.Draft = friendSocialChatInput.getText() ?? string.Empty;
+            }
+            if (online && friendSocialChatInput != null && friendSocialChatInput.isFocus && GameCanvas.keyPressed[15])
+            {
+                GameCanvas.keyPressed[15] = false;
+                conversation.Draft = friendSocialChatInput.getText() ?? string.Empty;
+                sendFriendSocialChatDraft(conversation, friendId);
+                return;
+            }
+            if (GameCanvas.isPointerJustRelease && online
+                && GameCanvas.isPointer(xScroll, getFriendSocialChatComposerY(), wScroll, friendSocialChatComposerHeight))
+            {
+                int localX = GameCanvas.px - xScroll;
+                int actionButtonY = getFriendSocialChatComposerY() + friendSocialChatComposerHeight
+                    - FRIEND_SOCIAL_TOOLBAR_ACTION_SIZE - 4;
+                bool actionButtonRow = GameCanvas.py >= actionButtonY;
+                if (actionButtonRow && localX < 27)
+                {
+                    showFriendSocialEmojiPicker();
+                }
+                else if (actionButtonRow && localX < 54)
+                {
+                    Service.gI().shareFriendSocialV2Location(friendId);
+                }
+                else if (actionButtonRow && localX >= wScroll - 27)
+                {
+                    sendFriendSocialChatDraft(conversation, friendId);
+                }
+                else
+                {
+                    focusFriendSocialChatInput(conversation, friendId);
+                }
+                GameCanvas.clearAllPointerEvent();
+                return;
+            }
+            updateKeyScrollView();
+            conversation.ScrollOffset = cmy;
+        }
+
+        private void doFireFriendSocialChat()
+        {
+            FriendSocialState state = FriendSocialState.gI();
+            int friendId = state.ActiveChatFriendId;
+            if (friendId <= 0)
+            {
+                closeFriendSocialChat();
+                return;
+            }
+            if (!isFriendSocialChatOnline(friendId))
+            {
+                GameScr.info1.addInfo("Bạn hiện offline", 0);
+                return;
+            }
+            focusFriendSocialChatInput(state.Conversations.GetOrCreate(friendId), friendId);
+        }
+
+        private void updateFriendSocialChatInput()
+        {
+            FriendSocialState state = FriendSocialState.gI();
+            int friendId = state.ActiveChatFriendId;
+            if (friendId <= 0)
+            {
+                closeFriendSocialChat();
+                return;
+            }
+            FriendConversation conversation = state.Conversations.GetOrCreate(friendId);
+            if (!isFriendSocialChatOnline(friendId))
+            {
+                if (friendSocialChatInput != null && friendSocialChatInputFriendId == friendId)
+                {
+                    conversation.Draft = friendSocialChatInput.getText() ?? string.Empty;
+                }
+                cancelFriendSocialChatInput();
+                return;
+            }
+            ensureFriendSocialChatInput(conversation, friendId);
+            if (!Main.isPC)
+            {
+                friendSocialChatInput.update();
+            }
+            conversation.Draft = friendSocialChatInput.getText() ?? string.Empty;
+        }
+
+        private void ensureFriendSocialChatInput(FriendConversation conversation, int friendId)
+        {
+            if (friendSocialChatInput == null)
+            {
+                friendSocialChatInput = new TField();
+                friendSocialChatInput.name = SOCIAL_V2_CHAT_INPUT;
+                friendSocialChatInput.setIputType(TField.INPUT_TYPE_ANY);
+                friendSocialChatInput.setMaxTextLenght(80);
+            }
+            friendSocialChatInput.x = xScroll + 55;
+            friendSocialChatInput.y = getFriendSocialChatComposerY() + 4;
+            friendSocialChatInput.width = wScroll - 84;
+            friendSocialChatInput.height = System.Math.Max(18, friendSocialChatComposerHeight - 8);
+            if (friendSocialChatInputFriendId != friendId)
+            {
+                friendSocialChatInputFriendId = friendId;
+                friendSocialChatInput.setText(conversation.Draft ?? string.Empty);
+                friendSocialChatInput.setFocusWithKb(false);
+            }
+        }
+
+        private void focusFriendSocialChatInput(FriendConversation conversation, int friendId)
+        {
+            ensureFriendSocialChatInput(conversation, friendId);
+            friendSocialChatInput.setText(conversation.Draft ?? string.Empty);
+            friendSocialChatInput.setFocusWithKb(true);
+        }
+
+        private void cancelFriendSocialChatInput()
+        {
+            if (friendSocialChatInput != null)
+            {
+                friendSocialChatInput.setFocusWithKb(false);
+                friendSocialChatInput.clearKb();
+            }
+        }
+
+        private void showFriendSocialEmojiPicker()
+        {
+            MyVector choices = new MyVector();
+            for (int index = 0; index < FRIEND_SOCIAL_EMOTICONS.Length; index++)
+            {
+                string expression = FRIEND_SOCIAL_EMOTICONS[index];
+                choices.addElement(new Command(expression, this, FRIEND_SOCIAL_EMOJI_ACTION, expression));
+            }
+            GameCanvas.menu.startAt(choices, 3);
+        }
+
+        private void appendFriendSocialChatExpression(string expression)
+        {
+            FriendSocialState state = FriendSocialState.gI();
+            int friendId = state.ActiveChatFriendId;
+            if (friendId <= 0 || string.IsNullOrEmpty(expression))
+            {
+                return;
+            }
+            FriendConversation conversation = state.Conversations.GetOrCreate(friendId);
+            string draft = conversation.Draft ?? string.Empty;
+            if (draft.Length + expression.Length > 80)
+            {
+                return;
+            }
+            conversation.Draft = draft + expression;
+            if (friendSocialChatInput != null && friendSocialChatInputFriendId == FriendSocialState.gI().ActiveChatFriendId)
+            {
+                friendSocialChatInput.setText(conversation.Draft);
+                friendSocialChatInput.setFocusWithKb(true);
+            }
+        }
+
+        private void sendFriendSocialChatDraft(FriendConversation conversation, int friendId)
+        {
+            string text = (conversation.Draft ?? string.Empty).Trim();
+            if (text.Length == 0)
+            {
+                GameScr.info1.addInfo("Chưa nhập nội dung", 0);
+                return;
+            }
+            if (text.Length > 80)
+            {
+                text = text.Substring(0, 80);
+            }
+            if (Service.gI().sendFriendSocialV2Chat(text, friendId))
+            {
+                conversation.Draft = string.Empty;
+                if (friendSocialChatInput != null && friendSocialChatInputFriendId == friendId)
+                {
+                    friendSocialChatInput.setText(string.Empty);
+                    friendSocialChatInput.setFocusWithKb(false);
+                }
+            }
+        }
+
+        private bool isFriendSocialChatOnline(int friendId)
+        {
+            bool online;
+            FriendSocialState state = FriendSocialState.gI();
+            if (state.TryGetPresence(friendId, out online))
+            {
+                return online;
+            }
+            if (state.Profile != null && state.Profile.FriendId == friendId)
+            {
+                return state.Profile.Online;
+            }
+            InfoItem info = findFriendSocialInfo(friendId);
+            return info != null && info.isOnline;
+        }
+
+        private InfoItem findFriendSocialInfo(int friendId)
+        {
+            for (int index = 0; index < vFriend.size(); index++)
+            {
+                InfoItem info = (InfoItem)vFriend.elementAt(index);
+                if (info != null && info.charInfo != null && info.charInfo.charID == friendId)
+                {
+                    return info;
+                }
+            }
+            return null;
+        }
+
+        private void refreshFriendSocialChatLayout(FriendConversation conversation, int friendId)
+        {
+            int textWidth = System.Math.Max(76, wScroll - 67);
+            bool sameConversation = friendSocialChatLayoutFriendId == friendId;
+            bool hasNewMessage = sameConversation && friendSocialChatLayoutRevision >= 0
+                && conversation.Revision != friendSocialChatLayoutRevision;
+            FriendSocialState state = FriendSocialState.gI();
+            FriendSocialProfile profile = (state.Profile != null && state.Profile.FriendId == friendId) ? state.Profile : null;
+            InfoItem friendInfo = findFriendSocialInfo(friendId);
+            string friendName = (profile != null && !string.IsNullOrEmpty(profile.Name)) ? profile.Name
+                : ((friendInfo != null && friendInfo.charInfo != null && !string.IsNullOrEmpty(friendInfo.charInfo.cName))
+                    ? friendInfo.charInfo.cName : "Bạn bè");
+            if (sameConversation && friendSocialChatLayoutRevision == conversation.Revision
+                && friendSocialChatLayoutWidth == textWidth && friendSocialChatLayoutSenderName == friendName)
+            {
+                return;
+            }
+            friendSocialChatLayout.Clear();
+            int top = 5;
+            int lineHeight = mFont.tahoma_7.getHeight() + 1;
+            int ownId = Char.myCharz().charID;
+            for (int index = 0; index < conversation.Messages.Count; index++)
+            {
+                FriendChatMessage message = conversation.Messages[index];
+                string text = getFriendSocialChatMessageText(message);
+                bool isOutgoing = message != null && message.SenderId == ownId;
+                mFont contentFont = isOutgoing ? mFont.tahoma_7b_dark : mFont.tahoma_7;
+                string[] lines = contentFont.splitFontArray(text, textWidth - 8);
+                if (lines == null || lines.Length == 0)
+                {
+                    lines = new string[] { string.Empty };
+                }
+                FriendSocialChatBubble bubble = new FriendSocialChatBubble();
+                bubble.Message = message;
+                bubble.Lines = lines;
+                bubble.Top = top;
+                bubble.Height = System.Math.Max(42, lines.Length * lineHeight + 27);
+                bubble.IsOutgoing = isOutgoing;
+                bubble.SenderLabel = bubble.IsOutgoing ? "Bạn" : friendName;
+                int contentWidth = mFont.tahoma_7b_blue.getWidth(bubble.SenderLabel);
+                for (int line = 0; line < lines.Length; line++)
+                {
+                    contentWidth = System.Math.Max(contentWidth, contentFont.getWidth(lines[line]));
+                }
+                bubble.Width = System.Math.Max(76, System.Math.Min(textWidth, contentWidth + 8));
+                friendSocialChatLayout.Add(bubble);
+                top += bubble.Height + 4;
+            }
+            friendSocialChatContentHeight = top;
+            friendSocialChatLayoutFriendId = friendId;
+            friendSocialChatLayoutRevision = conversation.Revision;
+            friendSocialChatLayoutWidth = textWidth;
+            friendSocialChatLayoutSenderName = friendName;
+            if (hasNewMessage)
+            {
+                friendSocialChatScrollToBottom = true;
+            }
+        }
+
+        private static string getFriendSocialChatMessageText(FriendChatMessage message)
+        {
+            if (message == null)
+            {
+                return string.Empty;
+            }
+            if (message.Kind == FriendChatMessageKind.Location && message.Location != null)
+            {
+                return "Vị trí: map " + message.Location.MapId + ", khu " + message.Location.ZoneId
+                    + " (" + message.Location.X + ", " + message.Location.Y + ")";
+            }
+            return message.Text ?? string.Empty;
+        }
+
+        private int getFriendSocialChatComposerHeight(FriendConversation conversation, int friendId)
+        {
+            string draft = (friendSocialChatInput != null && friendSocialChatInputFriendId == friendId)
+                ? Main.getSocialDesktopInputPreview(friendSocialChatInput)
+                : ((conversation == null) ? string.Empty : conversation.Draft);
+            int inputWidth = System.Math.Max(42, wScroll - 82);
+            string[] draftLines = mFont.tahoma_7.splitFontArray(draft ?? string.Empty, inputWidth - 10);
+            int lineCount = (draftLines == null || draftLines.Length == 0) ? 1 : draftLines.Length;
+            int wantedHeight = 10 + lineCount * (mFont.tahoma_7.getHeight() + 1);
+            return System.Math.Max(FRIEND_SOCIAL_CHAT_COMPOSER_MIN_HEIGHT,
+                System.Math.Min(FRIEND_SOCIAL_CHAT_COMPOSER_MAX_HEIGHT, wantedHeight));
+        }
+
+        private void refreshFriendSocialChatScroll(FriendConversation conversation, int friendId, bool online)
+        {
+            int oldLimit = cmyLim;
+            bool sameConversation = friendSocialChatScrollFriendId == friendId;
+            bool wasAtBottom = sameConversation && (oldLimit == 0 || cmy >= oldLimit - 2 || cmtoY >= oldLimit - 2);
+            yScroll = 80;
+            friendSocialChatComposerHeight = online
+                ? getFriendSocialChatComposerHeight(conversation, friendId) : 0;
+            hScroll = H - 96 - friendSocialChatComposerHeight;
+            if (hScroll < 40)
+            {
+                hScroll = 40;
+            }
+            int contentHeight = friendSocialChatContentHeight + (online ? 0 : 18);
+            cmyLim = System.Math.Max(0, contentHeight - hScroll);
+            currentListLength = System.Math.Max(1, conversation.Messages.Count);
+            ITEM_HEIGHT = FRIEND_SOCIAL_ROW_HEIGHT;
+
+            if (!sameConversation)
+            {
+                friendSocialChatScrollFriendId = friendId;
+                cmy = System.Math.Max(0, System.Math.Min(cmyLim, conversation.ScrollOffset));
+                cmtoY = cmy;
+                cmRun = 0;
+                pointerIsDowning = false;
+                selected = -1;
+            }
+            if (friendSocialChatScrollToBottom || (wasAtBottom && cmyLim != oldLimit))
+            {
+                cmy = cmyLim;
+                cmtoY = cmyLim;
+            }
+            else
+            {
+                cmy = System.Math.Max(0, System.Math.Min(cmyLim, cmy));
+                cmtoY = System.Math.Max(0, System.Math.Min(cmyLim, cmtoY));
+            }
+            friendSocialChatScrollToBottom = false;
+            conversation.ScrollOffset = cmy;
+        }
+
+        private int getFriendSocialChatComposerY()
+        {
+            return yScroll + hScroll + 1;
+        }
+
+        private static string getFriendSocialRelativeTime(long receivedAtUtcTicks)
+        {
+            if (receivedAtUtcTicks <= 0L)
+            {
+                return string.Empty;
+            }
+            long elapsedTicks = DateTime.UtcNow.Ticks - receivedAtUtcTicks;
+            if (elapsedTicks < TimeSpan.TicksPerMinute)
+            {
+                return "Vừa xong";
+            }
+            long minutes = elapsedTicks / TimeSpan.TicksPerMinute;
+            if (minutes < 60L)
+            {
+                return minutes + " phút trước";
+            }
+            return (minutes / 60L) + " giờ trước";
+        }
+
+        private void paintFriendSocialChatTitle(mGraphics g)
+        {
+            FriendSocialState state = FriendSocialState.gI();
+            FriendSocialProfile profile = state.Profile;
+            string name = (profile != null && profile.FriendId == state.ActiveChatFriendId && !string.IsNullOrEmpty(profile.Name))
+                ? profile.Name : "Chat bạn bè";
+            mFont.tahoma_7b_dark.drawString(g, name + " (" + state.ActiveChatFriendId + ")", xScroll + wScroll / 2, 59, mFont.CENTER);
+        }
+
+        private void paintFriendSocialChat(mGraphics g)
+        {
+            FriendSocialState state = FriendSocialState.gI();
+            int friendId = state.ActiveChatFriendId;
+            if (friendId <= 0)
+            {
+                mFont.tahoma_7_grey.drawString(g, "Chọn một người bạn để chat", xScroll + wScroll / 2, yScroll + 12, mFont.CENTER);
+                return;
+            }
+            FriendConversation conversation = state.Conversations.GetOrCreate(friendId);
+            bool online = isFriendSocialChatOnline(friendId);
+            refreshFriendSocialChatLayout(conversation, friendId);
+            refreshFriendSocialChatScroll(conversation, friendId, online);
+
+            g.setClip(xScroll, yScroll, wScroll, hScroll);
+            g.translate(0, -cmy);
+            FriendSocialProfile profile = (state.Profile != null && state.Profile.FriendId == friendId) ? state.Profile : null;
+            InfoItem friendInfo = findFriendSocialInfo(friendId);
+            short friendHead = -1;
+            if (profile != null)
+            {
+                friendHead = profile.Head;
+            }
+            else if (friendInfo != null && friendInfo.charInfo != null)
+            {
+                friendHead = (short)friendInfo.charInfo.head;
+            }
+            for (int index = 0; index < friendSocialChatLayout.Count; index++)
+            {
+                FriendSocialChatBubble bubble = friendSocialChatLayout[index];
+                int bubbleY = yScroll + bubble.Top;
+                if (bubbleY - cmy > yScroll + hScroll || bubbleY + bubble.Height - cmy < yScroll)
+                {
+                    continue;
+                }
+                int bubbleWidth = bubble.Width;
+                int bubbleX = bubble.IsOutgoing ? xScroll + 29 : xScroll + wScroll - bubbleWidth - 29;
+                g.setColor(bubble.IsOutgoing ? 16381955 : 15196114);
+                g.fillRect(bubbleX, bubbleY, bubbleWidth, bubble.Height, 4);
+                if (bubble.IsOutgoing)
+                {
+                    paintFriendSocialChatAvatarBox(g, Char.myCharz(), Char.myCharz().head,
+                        xScroll + 2, bubbleY, mGraphics.TRANS_NONE);
+                }
+                else
+                {
+                    paintFriendSocialChatAvatarBox(g, (friendInfo == null) ? null : friendInfo.charInfo,
+                        friendHead, xScroll + wScroll - 26, bubbleY, mGraphics.TRANS_MIRROR);
+                }
+                mFont.tahoma_7b_blue.drawString(g, bubble.SenderLabel, bubbleX + 4, bubbleY + 2, 0);
+                mFont messageFont = bubble.IsOutgoing ? mFont.tahoma_7b_dark : mFont.tahoma_7;
+                for (int line = 0; line < bubble.Lines.Length; line++)
+                {
+                    messageFont.drawString(g, bubble.Lines[line], bubbleX + 4,
+                        bubbleY + 14 + line * (mFont.tahoma_7.getHeight() + 1), 0);
+                }
+                long receivedAtUtcTicks = (bubble.Message == null) ? 0L : bubble.Message.ReceivedAtUtcTicks;
+                mFont.tahoma_7_grey.drawString(g, getFriendSocialRelativeTime(receivedAtUtcTicks),
+                    bubbleX + bubbleWidth - 3, bubbleY + bubble.Height - 11, mFont.RIGHT);
+            }
+            if (!online)
+            {
+                mFont.tahoma_7_grey.drawString(g, "-----Bạn bè đã offline-----", xScroll + wScroll / 2,
+                    yScroll + friendSocialChatContentHeight + 2, mFont.CENTER);
+            }
+            g.translate(0, cmy);
+            g.setClip(0, 0, GameCanvas.w, GameCanvas.h);
+            if (online)
+            {
+                paintFriendSocialChatComposer(g, conversation, friendId);
+            }
+            else
+            {
+                paintScrollArrow(g);
+            }
+        }
+
+        private void paintFriendSocialChatComposer(mGraphics g, FriendConversation conversation, int friendId)
+        {
+            int composerY = getFriendSocialChatComposerY();
+            int actionButtonY = composerY + friendSocialChatComposerHeight - FRIEND_SOCIAL_TOOLBAR_ACTION_SIZE - 4;
+            g.setColor(FRIEND_SOCIAL_COLOR_ACTION_PANEL);
+            g.fillRect(xScroll, composerY, wScroll, friendSocialChatComposerHeight);
+            g.setColor(FRIEND_SOCIAL_COLOR_DIVIDER);
+            g.fillRect(xScroll, composerY, wScroll, 1);
+            paintFriendSocialRoundButton(g, xScroll + 2, actionButtonY, FRIEND_SOCIAL_COLOR_BUTTON,
+                getFriendSocialIcon(ref friendSocialEmojiIcon, "/mainimage/social_emoji.png"));
+            paintFriendSocialRoundButton(g, xScroll + 28, actionButtonY, FRIEND_SOCIAL_COLOR_BUTTON,
+                getFriendSocialIcon(ref friendSocialLocationIcon, "/mainimage/social_location.png"));
+            paintFriendSocialRoundButton(g, xScroll + wScroll - FRIEND_SOCIAL_TOOLBAR_ACTION_SIZE - 2, actionButtonY, FRIEND_SOCIAL_COLOR_BUTTON,
+                getFriendSocialIcon(ref friendSocialSendIcon, "/mainimage/social_send.png"));
+            ensureFriendSocialChatInput(conversation, friendId);
+            int inputX = xScroll + 54;
+            int inputWidth = wScroll - 82;
+            int inputHeight = friendSocialChatComposerHeight - 8;
+            paintFriendSocialInputFrame(g, friendSocialChatInput, inputX, composerY + 4, inputWidth, inputHeight);
+            string draft = Main.getSocialDesktopInputPreview(friendSocialChatInput);
+            string[] draftLines = string.IsNullOrEmpty(draft)
+                ? new string[] { "Nhập để trò chuyện" }
+                : mFont.tahoma_7.splitFontArray(draft, inputWidth - 10);
+            if (draftLines == null || draftLines.Length == 0)
+            {
+                draftLines = new string[] { string.Empty };
+            }
+            int lineHeight = mFont.tahoma_7.getHeight() + 1;
+            int visibleLines = System.Math.Max(1, (inputHeight - 4) / lineHeight);
+            int firstLine = System.Math.Max(0, draftLines.Length - visibleLines);
+            g.setClip(inputX + 4, composerY + 5, inputWidth - 8, inputHeight - 2);
+            mFont draftFont = string.IsNullOrEmpty(draft) ? mFont.tahoma_7_grey : mFont.tahoma_7b_dark;
+            for (int line = firstLine; line < draftLines.Length; line++)
+            {
+                draftFont.drawString(g, draftLines[line], inputX + 5,
+                    composerY + 7 + (line - firstLine) * lineHeight, 0);
+            }
+            g.setClip(0, 0, GameCanvas.w, GameCanvas.h);
+        }
+
+        private bool isFriendSocialV2Enabled()
+        {
+            return type == TYPE_FRIEND && !friendSocialChatOnly && FriendSocialState.gI().SupportsSocialV2;
+        }
+
+        private void paintFriendSocialTitle(mGraphics g)
+        {
+            mFont.tahoma_7b_dark.drawString(g, mResources.friend, xScroll + wScroll / 2, 59, mFont.CENTER);
+        }
+
+        private void paintFriendSocial(mGraphics g)
+        {
+            paintFriendSocialToolbar(g);
+            paintFriendSocialContentHeading(g);
+            g.setClip(xScroll, yScroll, wScroll, hScroll);
+            g.translate(0, -cmy);
+            int rowCount = getFriendSocialListLength();
+            if (rowCount == 0)
+            {
+                mFont.tahoma_7_grey.drawString(g, getFriendSocialEmptyText(), xScroll + wScroll / 2,
+                    yScroll + hScroll / 2 - mFont.tahoma_7.getHeight() / 2, mFont.CENTER);
+            }
+            else
+            {
+                for (int index = 0; index < rowCount; index++)
+                {
+                    int rowY = yScroll + index * FRIEND_SOCIAL_ROW_HEIGHT;
+                    if (rowY - cmy > yScroll + hScroll || rowY - cmy < yScroll - FRIEND_SOCIAL_ROW_HEIGHT)
+                    {
+                        continue;
+                    }
+                    if (friendSocialMode == FRIEND_SOCIAL_MODE_FRIENDS)
+                    {
+                        if (index < vFriend.size())
+                        {
+                            paintFriendSocialFriendRow(g, index, rowY);
+                        }
+                        else
+                        {
+                            paintFriendSocialOutgoingRequestRow(g, index, rowY);
+                        }
+                    }
+                    else if (friendSocialMode == FRIEND_SOCIAL_MODE_SEARCH)
+                    {
+                        paintFriendSocialSearchRow(g, index, rowY);
+                    }
+                    else
+                    {
+                        paintFriendSocialInboxRow(g, index, rowY);
+                    }
+                }
+            }
+            paintFriendSocialPageStatus(g, rowCount);
+            paintScrollArrow(g);
+        }
+
+        private void paintFriendSocialToolbar(mGraphics g)
+        {
+            const int toolbarY = 80;
+            int searchButtonX = xScroll + wScroll - FRIEND_SOCIAL_TOOLBAR_ACTION_SIZE * 2 - 4;
+            int mailButtonX = xScroll + wScroll - FRIEND_SOCIAL_TOOLBAR_ACTION_SIZE - 2;
+            int inputX = xScroll + FRIEND_SOCIAL_SEARCH_INPUT_X_OFFSET;
+            int inputWidth = searchButtonX - inputX - 3;
+            int inputY = toolbarY + 1;
+            int inputHeight = FRIEND_SOCIAL_TOOLBAR_ACTION_SIZE;
+            g.setColor(15196114);
+            g.fillRect(xScroll, toolbarY, wScroll, FRIEND_SOCIAL_MODE_BAR_HEIGHT);
+            mFont.tahoma_7b_dark.drawString(g, "Tìm kiếm", xScroll + 5, toolbarY + 7, 0);
+            ensureFriendSocialSearchInput();
+            paintFriendSocialInputFrame(g, friendSocialSearchInput, inputX, inputY, inputWidth, inputHeight);
+            string query = Main.getSocialDesktopInputPreview(friendSocialSearchInput);
+            mFont searchFont = string.IsNullOrEmpty(query) ? mFont.tahoma_7_grey : mFont.tahoma_7b_dark;
+            g.setClip(inputX + 4, inputY + 1, inputWidth - 8, inputHeight - 2);
+            searchFont.drawString(g, string.IsNullOrEmpty(query) ? "Nhập ID hoặc tên ..." : query, inputX + 5, toolbarY + 8, 0);
+            g.setClip(0, 0, GameCanvas.w, GameCanvas.h);
+            paintFriendSocialRoundButton(g, searchButtonX, toolbarY + 1, FRIEND_SOCIAL_COLOR_SEARCH,
+                getFriendSocialIcon(ref friendSocialSearchIcon, "/mainimage/social_search.png"));
+            int mailColor = (friendSocialMode == FRIEND_SOCIAL_MODE_INBOX) ? FRIEND_SOCIAL_COLOR_MAIL_ACTIVE : FRIEND_SOCIAL_COLOR_BUTTON;
+            paintFriendSocialRoundButton(g, mailButtonX, toolbarY + 1, mailColor,
+                getFriendSocialIcon(ref friendSocialMailIcon, "/mainimage/social_mail.png"));
+            FriendSocialState state = FriendSocialState.gI();
+            if (state.PendingRequestCount > 0)
+            {
+                int badgeX = mailButtonX + FRIEND_SOCIAL_TOOLBAR_ACTION_SIZE - 5;
+                g.setColor(FRIEND_SOCIAL_COLOR_REMOVE);
+                g.fillRect(badgeX, toolbarY, 8, 8, 4);
+                mFont.tahoma_7_white.drawString(g, (state.PendingRequestCount > 99) ? "9+" : state.PendingRequestCount.ToString(),
+                    badgeX + 4, toolbarY, mFont.CENTER);
+            }
+            g.setColor(FRIEND_SOCIAL_COLOR_DIVIDER);
+            g.fillRect(xScroll, toolbarY + FRIEND_SOCIAL_MODE_BAR_HEIGHT - 1, wScroll, 1);
+        }
+
+        private void paintFriendSocialContentHeading(mGraphics g)
+        {
+            int headingY = 80 + FRIEND_SOCIAL_MODE_BAR_HEIGHT;
+            g.setColor(15723751);
+            g.fillRect(xScroll, headingY, wScroll, FRIEND_SOCIAL_LIST_HEADING_HEIGHT - 1, 5);
+            mFont.tahoma_7b_dark.drawString(g, getFriendSocialContentHeading(), xScroll + wScroll / 2, headingY + 8, mFont.CENTER);
+        }
+
+        private string getFriendSocialContentHeading()
+        {
+            if (friendSocialMode == FRIEND_SOCIAL_MODE_SEARCH)
+            {
+                return "Kết quả tìm kiếm";
+            }
+            return (friendSocialMode == FRIEND_SOCIAL_MODE_INBOX) ? "Hộp thư" : "Danh sách bạn bè";
+        }
+
+        private static void paintFriendSocialRoundedRect(mGraphics g, int x, int y, int width, int height, int radius, int color)
+        {
+            g.setColor(color);
+            g.fillRect(x, y, width, height, radius);
+        }
+
+        private static void paintFriendSocialInputFrame(mGraphics g, TField input, int x, int y, int width, int height)
+        {
+            bool focused = input != null && input.isFocus;
+            int inputColor = focused ? FRIEND_SOCIAL_COLOR_INPUT_FOCUS : FRIEND_SOCIAL_COLOR_INPUT;
+            paintFriendSocialRoundedRect(g, x, y, width, height, 6, inputColor);
+        }
+
+        private static void paintMemberListRowBackground(mGraphics g, int x, int y, int width, int height, bool selected)
+        {
+            int avatarWidth = System.Math.Min(FRIEND_SOCIAL_MEMBER_AVATAR_WIDTH, width);
+            g.setColor(selected ? 16383818 : 15196114);
+            g.fillRect(x + avatarWidth, y, width - avatarWidth, height, 5);
+            g.setColor(selected ? 9541120 : 9993045);
+            g.fillRect(x, y, avatarWidth, height);
+        }
+
+        private static void paintFriendSocialRoundButton(mGraphics g, int x, int y, int color, Image icon)
+        {
+            paintFriendSocialRoundedRect(g, x, y, FRIEND_SOCIAL_TOOLBAR_ACTION_SIZE, FRIEND_SOCIAL_TOOLBAR_ACTION_SIZE,
+                FRIEND_SOCIAL_TOOLBAR_ACTION_SIZE / 2, color);
+            drawFriendSocialIconScaled(g, icon, x + FRIEND_SOCIAL_TOOLBAR_ACTION_SIZE / 2,
+                y + FRIEND_SOCIAL_TOOLBAR_ACTION_SIZE / 2, FRIEND_SOCIAL_ACTION_ICON_SIZE);
+        }
+
+        private void paintFriendSocialFriendRow(mGraphics g, int index, int rowY)
+        {
+            InfoItem info = (InfoItem)vFriend.elementAt(index);
+            if (info == null || info.charInfo == null)
+            {
+                return;
+            }
+            FriendSocialState state = FriendSocialState.gI();
+            int friendId = info.charInfo.charID;
+            bool online = info.isOnline;
+            bool knownOnline;
+            if (state.FriendOnline.TryGetValue(friendId, out knownOnline))
+            {
+                online = knownOnline;
+            }
+            bool active = state.ActiveChatFriendId == friendId;
+            paintFriendSocialRowBackground(g, index, rowY, active);
+            paintFriendSocialListAvatar(g, info.charInfo, info.charInfo.head, rowY);
+            mFont.tahoma_7b_dark.drawString(g, info.charInfo.cName + " (" + friendId + ")", xScroll + 29, rowY, 0);
+            string status = online ? "online" : "offline";
+            FriendConversation conversation;
+            if (state.Conversations.TryPeek(friendId, out conversation) && conversation.UnreadCount > 0)
+            {
+                status += " - Tin nhắn mới";
+            }
+            (online ? mFont.tahoma_7b_green : mFont.tahoma_7_grey).drawString(g, status, xScroll + 29, rowY + 11, 0);
+            drawFriendSocialIcon(g, getFriendSocialIcon(ref friendSocialRemoveIcon, "/mainimage/social_remove.png"),
+                xScroll + wScroll - 12, rowY + 12);
+        }
+
+        private void paintFriendSocialSearchRow(mGraphics g, int index, int rowY)
+        {
+            FriendSearchResult result = FriendSocialState.gI().Search.Results[index];
+            paintFriendSocialRowBackground(g, index, rowY, false);
+            paintFriendSocialListAvatar(g, null, result.Head, rowY);
+            mFont.tahoma_7b_dark.drawString(g, result.Name + " (" + result.PlayerId + ")", xScroll + 29, rowY, 0);
+            string relationshipLabel = getFriendSocialSearchRelationshipLabel(result.Relationship);
+            if (result.Relationship == 2)
+            {
+                mFont.tahoma_7b_green.drawString(g, relationshipLabel, xScroll + 29, rowY + 11, 0);
+                drawFriendSocialIcon(g, getFriendSocialIcon(ref friendSocialAddIcon, "/mainimage/social_add.png"),
+                    xScroll + wScroll - 13, rowY + 12);
+            }
+            else if (result.Relationship == 1)
+            {
+                mFont.tahoma_7_grey.drawString(g, relationshipLabel, xScroll + wScroll - 8, rowY + 6, mFont.RIGHT);
+            }
+            else
+            {
+                mFont.tahoma_7_green2.drawString(g, relationshipLabel, xScroll + 29, rowY + 11, 0);
+            }
+        }
+
+        private static string getFriendSocialSearchRelationshipLabel(byte relationship)
+        {
+            if (relationship == 1)
+            {
+                return "Đang chờ";
+            }
+            return (relationship == 2) ? "Thêm bạn" : "Đã là bạn";
+        }
+
+        private void paintFriendSocialInboxRow(mGraphics g, int index, int rowY)
+        {
+            FriendSocialState state = FriendSocialState.gI();
+            FriendInboxRequest request = state.Inbox.Results[index];
+            paintFriendSocialRowBackground(g, index, rowY, false);
+            paintFriendSocialListAvatar(g, null, request.Head, rowY);
+            mFont.tahoma_7b_dark.drawString(g, request.SenderName + " (" + request.SenderId + ")", xScroll + 29, rowY, 0);
+            if (state.IsInboxOperationPending && state.PendingInboxRequestId == request.RequestId)
+            {
+                mFont.tahoma_7_grey.drawString(g, "Đang xử lý...", xScroll + 29, rowY + 11, 0);
+                return;
+            }
+            mFont.tahoma_7b_green.drawString(g, "Lời mời kết bạn", xScroll + 29, rowY + 11, 0);
+            drawFriendSocialIcon(g, getFriendSocialIcon(ref friendSocialRemoveIcon, "/mainimage/social_remove.png"),
+                xScroll + wScroll - 37, rowY + 12);
+            drawFriendSocialIcon(g, getFriendSocialIcon(ref friendSocialAcceptIcon, "/mainimage/social_accept.png"),
+                xScroll + wScroll - 13, rowY + 12);
+        }
+
+        private void paintFriendSocialOutgoingRequestRow(mGraphics g, int index, int rowY)
+        {
+            FriendOutgoingRequest request = getFriendSocialOutgoingRequest(index);
+            if (request == null)
+            {
+                return;
+            }
+            paintFriendSocialRowBackground(g, index, rowY, false);
+            paintFriendSocialListAvatar(g, null, request.Head, rowY);
+            mFont.tahoma_7b_dark.drawString(g, request.Name + " (" + request.PlayerId + ")", xScroll + 29, rowY, 0);
+            mFont.tahoma_7_grey.drawString(g, "Đang chờ xác nhận", xScroll + 29, rowY + 11, 0);
+        }
+
+        private void paintFriendSocialRowBackground(mGraphics g, int index, int rowY, bool active)
+        {
+            paintMemberListRowBackground(g, xScroll, rowY, wScroll, FRIEND_SOCIAL_ROW_HEIGHT - 1,
+                index == selected || active);
+        }
+
+        private void paintFriendSocialPageStatus(mGraphics g, int rowCount)
+        {
+            FriendPageState<FriendSearchResult> search = FriendSocialState.gI().Search;
+            FriendPageState<FriendInboxRequest> inbox = FriendSocialState.gI().Inbox;
+            bool loading = (friendSocialMode == FRIEND_SOCIAL_MODE_SEARCH) ? search.IsLoading : inbox.IsLoading;
+            bool hasMore = (friendSocialMode == FRIEND_SOCIAL_MODE_SEARCH) ? search.HasMore : inbox.HasMore;
+            if (friendSocialMode == FRIEND_SOCIAL_MODE_FRIENDS || (!loading && !hasMore))
+            {
+                return;
+            }
+            string status = loading ? "Đang tải..." : "Cuộn xuống để xem thêm";
+            mFont.tahoma_7_grey.drawString(g, status, xScroll + wScroll / 2,
+                yScroll + rowCount * FRIEND_SOCIAL_ROW_HEIGHT + 5, mFont.CENTER);
+        }
+
+        private string getFriendSocialEmptyText()
+        {
+            if (friendSocialMode == FRIEND_SOCIAL_MODE_SEARCH)
+            {
+                return string.IsNullOrEmpty(friendSocialSearchQuery) ? "Nhập tên hoặc ID để tìm" : "Không tìm thấy bạn";
+            }
+            if (friendSocialMode == FRIEND_SOCIAL_MODE_INBOX)
+            {
+                return FriendSocialState.gI().Inbox.IsLoading ? "Đang tải..." : "Không có lời mời kết bạn";
+            }
+            return mResources.no_friend;
+        }
+
+        private int getFriendSocialListLength()
+        {
+            if (friendSocialMode == FRIEND_SOCIAL_MODE_SEARCH)
+            {
+                return FriendSocialState.gI().Search.Results.Count;
+            }
+            if (friendSocialMode == FRIEND_SOCIAL_MODE_INBOX)
+            {
+                return FriendSocialState.gI().Inbox.Results.Count;
+            }
+            return vFriend.size() + getFriendSocialOutgoingRequestCount();
+        }
+
+        private int getFriendSocialOutgoingRequestCount()
+        {
+            FriendSocialState state = FriendSocialState.gI();
+            int count = 0;
+            for (int index = 0; index < state.OutgoingRequests.Count; index++)
+            {
+                FriendOutgoingRequest request = state.OutgoingRequests[index];
+                if (request != null && findFriendSocialInfo(request.PlayerId) == null)
+                {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        private FriendOutgoingRequest getFriendSocialOutgoingRequest(int listIndex)
+        {
+            int outgoingIndex = listIndex - vFriend.size();
+            if (outgoingIndex < 0)
+            {
+                return null;
+            }
+            FriendSocialState state = FriendSocialState.gI();
+            for (int index = 0; index < state.OutgoingRequests.Count; index++)
+            {
+                FriendOutgoingRequest request = state.OutgoingRequests[index];
+                if (request == null || findFriendSocialInfo(request.PlayerId) != null)
+                {
+                    continue;
+                }
+                if (outgoingIndex == 0)
+                {
+                    return request;
+                }
+                outgoingIndex--;
+            }
+            return null;
+        }
+
+        private void paintFriendSocialListAvatar(mGraphics g, Char character, int fallbackHead, int rowY)
+        {
+            int avatarHeight = FRIEND_SOCIAL_ROW_HEIGHT - 1;
+            int rowScreenTop = rowY - cmy;
+            int clipTop = System.Math.Max(yScroll, rowScreenTop);
+            int clipBottom = System.Math.Min(yScroll + hScroll, rowScreenTop + avatarHeight);
+            if (clipBottom <= clipTop)
+            {
+                return;
+            }
+            try
+            {
+                g.setClip(xScroll, clipTop + cmy, FRIEND_SOCIAL_MEMBER_AVATAR_WIDTH, clipBottom - clipTop);
+                int centerX = xScroll + FRIEND_SOCIAL_MEMBER_AVATAR_WIDTH / 2;
+                if (character != null && character.headICON != -1)
+                {
+                    SmallImage.drawSmallImage(g, character.headICON, centerX, rowY + avatarHeight / 2,
+                        mGraphics.TRANS_NONE, StaticObj.VCENTER_HCENTER);
+                    return;
+                }
+                int head = character != null ? character.head : fallbackHead;
+                if (head < 0 || GameScr.parts == null || head >= GameScr.parts.Length || GameScr.parts[head] == null)
+                {
+                    return;
+                }
+                Part part = GameScr.parts[head];
+                int frame = Char.CharInfo[0][0][0];
+                if (part.pi == null || frame < 0 || frame >= part.pi.Length || part.pi[frame] == null)
+                {
+                    return;
+                }
+                SmallImage.drawSmallImage(g, part.pi[frame].id,
+                    centerX + Char.CharInfo[0][0][1] + part.pi[frame].dx - 3,
+                    rowY + avatarHeight, mGraphics.TRANS_NONE, mGraphics.LEFT | mGraphics.BOTTOM);
+            }
+            catch (Exception)
+            {
+            }
+            finally
+            {
+                g.setClip(xScroll, yScroll + cmy, wScroll, hScroll);
+            }
+        }
+
+        private void paintFriendSocialAvatar(mGraphics g, Char character, int fallbackHead, int x, int y)
+        {
+            paintFriendSocialAvatar(g, character, fallbackHead, x, y, mGraphics.TRANS_NONE);
+        }
+
+        private void paintFriendSocialChatAvatarBox(mGraphics g, Char character, int fallbackHead, int boxX, int boxY, int transform)
+        {
+            g.setColor(9993045);
+            g.fillRect(boxX, boxY, FRIEND_SOCIAL_MEMBER_AVATAR_WIDTH, FRIEND_SOCIAL_MEMBER_AVATAR_WIDTH, 4);
+            try
+            {
+                int centerX = boxX + FRIEND_SOCIAL_MEMBER_AVATAR_WIDTH / 2;
+                if (character != null && character.headICON != -1)
+                {
+                    SmallImage.drawSmallImage(g, character.headICON, centerX,
+                        boxY + FRIEND_SOCIAL_MEMBER_AVATAR_WIDTH / 2,
+                        transform, StaticObj.VCENTER_HCENTER);
+                    return;
+                }
+                int head = character != null ? character.head : fallbackHead;
+                if (head < 0 || GameScr.parts == null || head >= GameScr.parts.Length || GameScr.parts[head] == null)
+                {
+                    return;
+                }
+                Part part = GameScr.parts[head];
+                int frame = Char.CharInfo[0][0][0];
+                if (part.pi == null || frame < 0 || frame >= part.pi.Length || part.pi[frame] == null)
+                {
+                    return;
+                }
+                SmallImage.drawSmallImage(g, part.pi[frame].id,
+                    centerX + Char.CharInfo[0][0][1] + part.pi[frame].dx - 3,
+                    boxY + FRIEND_SOCIAL_MEMBER_AVATAR_WIDTH,
+                    transform, mGraphics.LEFT | mGraphics.BOTTOM);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private void paintFriendSocialAvatar(mGraphics g, Char character, int fallbackHead, int x, int y, int transform)
+        {
+            try
+            {
+                if (character != null && character.headICON != -1)
+                {
+                    SmallImage.drawSmallImage(g, character.headICON, x, y, transform, 0);
+                    return;
+                }
+                int head = (character != null) ? character.head : fallbackHead;
+                if (head < 0 || GameScr.parts == null || head >= GameScr.parts.Length)
+                {
+                    return;
+                }
+                Part part = GameScr.parts[head];
+                SmallImage.drawSmallImage(g, part.pi[Char.CharInfo[0][0][0]].id,
+                    x + part.pi[Char.CharInfo[0][0][0]].dx, y + part.pi[Char.CharInfo[0][0][0]].dy, transform, 0);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private static Image getFriendSocialIcon(ref Image icon, string path)
+        {
+            if (icon == null)
+            {
+                icon = GameCanvas.loadImage(path);
+            }
+            return icon;
+        }
+
+        private static void drawFriendSocialIcon(mGraphics g, Image icon, int x, int y)
+        {
+            if (icon != null)
+            {
+                g.drawImage(icon, x, y, 3);
+            }
+        }
+
+        private static void drawFriendSocialIconScaled(mGraphics g, Image icon, int x, int y, int size)
+        {
+            if (icon != null && size > 0)
+            {
+                g.drawImageScale(icon, x - size / 2, y - size / 2, size, size, mGraphics.TRANS_NONE);
+            }
+        }
+
+        private void setFriendSocialMode(int mode)
+        {
+            if (mode < FRIEND_SOCIAL_MODE_FRIENDS || mode > FRIEND_SOCIAL_MODE_INBOX)
+            {
+                return;
+            }
+            friendSocialScrollOffsets[friendSocialMode] = cmy;
+            friendSocialMode = mode;
+            friendSocialBottomReleaseSeen = false;
+            friendSocialPointerDownAtBottom = false;
+            if (mode != FRIEND_SOCIAL_MODE_SEARCH && friendSocialSearchInput != null)
+            {
+                friendSocialSearchInput.setFocusWithKb(false);
+            }
+            refreshFriendSocialScroll(restoreModeOffset: true);
+            selected = (GameCanvas.isTouch ? (-1) : 0);
+            if (friendSocialMode == FRIEND_SOCIAL_MODE_INBOX)
+            {
+                ensureFriendSocialInboxLoaded();
+            }
+        }
+
+        private void refreshFriendSocialScroll(bool restoreModeOffset)
+        {
+            ITEM_HEIGHT = FRIEND_SOCIAL_ROW_HEIGHT;
+            int headerHeight = FRIEND_SOCIAL_MODE_BAR_HEIGHT + FRIEND_SOCIAL_LIST_HEADING_HEIGHT;
+            yScroll = 80 + headerHeight;
+            hScroll = H - 96 - headerHeight;
+            if (hScroll < FRIEND_SOCIAL_ROW_HEIGHT)
+            {
+                hScroll = FRIEND_SOCIAL_ROW_HEIGHT;
+            }
+            currentListLength = getFriendSocialListLength();
+            cmyLim = currentListLength * ITEM_HEIGHT - hScroll;
+            if (cmyLim < 0)
+            {
+                cmyLim = 0;
+            }
+            int target = restoreModeOffset ? friendSocialScrollOffsets[friendSocialMode] : cmy;
+            if (target < 0)
+            {
+                target = 0;
+            }
+            if (target > cmyLim)
+            {
+                target = cmyLim;
+            }
+            cmy = (cmtoY = target);
+            friendSocialScrollOffsets[friendSocialMode] = cmy;
+            if (selected >= currentListLength)
+            {
+                selected = currentListLength - 1;
+            }
+        }
+
+        private void updateKeyFriendSocial()
+        {
+            refreshFriendSocialScroll(restoreModeOffset: false);
+            ensureFriendSocialSearchInput();
+            if (friendSocialSearchInput.isFocus && GameCanvas.keyAsciiPress != 0)
+            {
+                friendSocialSearchInput.keyPressed(GameCanvas.keyAsciiPress);
+                GameCanvas.keyAsciiPress = 0;
+            }
+            if (Main.isPC && friendSocialSearchInput.isFocus && GameCanvas.keyPressed[14])
+            {
+                GameCanvas.keyPressed[14] = false;
+                friendSocialSearchInput.keyPressed(-8);
+            }
+            if (friendSocialSearchInput.isFocus && GameCanvas.keyPressed[15])
+            {
+                GameCanvas.keyPressed[15] = false;
+                startFriendSocialSearch(friendSocialSearchInput.getText());
+                friendSocialSearchInput.setFocusWithKb(false);
+                return;
+            }
+            if (handleFriendSocialHeaderTouch())
+            {
+                return;
+            }
+            bool released = GameCanvas.isPointerJustRelease;
+            if (GameCanvas.isPointerDown && cmy >= cmyLim)
+            {
+                friendSocialPointerDownAtBottom = true;
+            }
+            bool keyPressedDown = GameCanvas.keyPressed[(!Main.isPC) ? 8 : 22];
+            bool wasAtBottom = cmy >= cmyLim;
+            updateKeyScrollView();
+            friendSocialScrollOffsets[friendSocialMode] = cmy;
+            if (released)
+            {
+                if (cmy >= cmyLim)
+                {
+                    if (friendSocialBottomReleaseSeen && friendSocialPointerDownAtBottom)
+                    {
+                        tryRequestFriendSocialNextPage();
+                    }
+                    else
+                    {
+                        friendSocialBottomReleaseSeen = true;
+                    }
+                }
+                else
+                {
+                    friendSocialBottomReleaseSeen = false;
+                }
+                friendSocialPointerDownAtBottom = false;
+            }
+            else if (keyPressedDown && wasAtBottom && friendSocialBottomReleaseSeen)
+            {
+                tryRequestFriendSocialNextPage();
+            }
+        }
+
+        private bool handleFriendSocialHeaderTouch()
+        {
+            if (!GameCanvas.isPointerJustRelease)
+            {
+                return false;
+            }
+            const int toolbarY = 80;
+            if (GameCanvas.isPointer(xScroll, toolbarY, wScroll, FRIEND_SOCIAL_MODE_BAR_HEIGHT))
+            {
+                int localX = GameCanvas.px - xScroll;
+                if (localX >= wScroll - FRIEND_SOCIAL_TOOLBAR_ACTION_SIZE - 2)
+                {
+                    setFriendSocialMode((friendSocialMode == FRIEND_SOCIAL_MODE_INBOX)
+                        ? FRIEND_SOCIAL_MODE_FRIENDS : FRIEND_SOCIAL_MODE_INBOX);
+                }
+                else if (localX >= wScroll - FRIEND_SOCIAL_TOOLBAR_ACTION_SIZE * 2 - 4)
+                {
+                    ensureFriendSocialSearchInput();
+                    if (friendSocialSearchInput.getText().Trim().Length < 2)
+                    {
+                        friendSocialSearchInput.setFocusWithKb(true);
+                    }
+                    else
+                    {
+                        startFriendSocialSearch(friendSocialSearchInput.getText());
+                        friendSocialSearchInput.setFocusWithKb(false);
+                    }
+                }
+                else
+                {
+                    openFriendSocialSearchInput();
+                }
+                GameCanvas.isPointerJustRelease = false;
+                GameCanvas.isPointerClick = false;
+                return true;
+            }
+            return false;
+        }
+
+        private void openFriendSocialSearchInput()
+        {
+            ensureFriendSocialSearchInput();
+            friendSocialSearchInput.setFocusWithKb(true);
+        }
+
+        private void ensureFriendSocialSearchInput()
+        {
+            if (friendSocialSearchInput == null)
+            {
+                friendSocialSearchInput = new TField();
+                friendSocialSearchInput.name = SOCIAL_V2_SEARCH_INPUT;
+                friendSocialSearchInput.setIputType(TField.INPUT_TYPE_ANY);
+                friendSocialSearchInput.setMaxTextLenght(32);
+                friendSocialSearchInput.setText(friendSocialSearchQuery);
+            }
+            friendSocialSearchInput.x = xScroll + FRIEND_SOCIAL_SEARCH_INPUT_X_OFFSET;
+            friendSocialSearchInput.y = 83;
+            friendSocialSearchInput.width = System.Math.Max(42, wScroll - FRIEND_SOCIAL_SEARCH_INPUT_X_OFFSET - 51);
+            friendSocialSearchInput.height = 18;
+            if (!friendSocialSearchInput.isFocus && friendSocialSearchInput.getText() != friendSocialSearchQuery)
+            {
+                friendSocialSearchInput.setText(friendSocialSearchQuery);
+            }
+        }
+
+        private void updateFriendSocialSearchInput()
+        {
+            if (!isFriendSocialV2Enabled())
+            {
+                return;
+            }
+            ensureFriendSocialSearchInput();
+            friendSocialSearchInput.update();
+            restoreFriendListWhenSearchIsEmpty(friendSocialSearchInput.getText());
+        }
+
+        private bool restoreFriendListWhenSearchIsEmpty(string query)
+        {
+            if (!string.IsNullOrEmpty((query ?? string.Empty).Trim()))
+            {
+                return false;
+            }
+            if (friendSocialMode != FRIEND_SOCIAL_MODE_SEARCH)
+            {
+                return true;
+            }
+            bool keepInputFocus = friendSocialSearchInput != null && friendSocialSearchInput.isFocus;
+            friendSocialSearchQuery = string.Empty;
+            FriendSocialState.gI().Search.Clear();
+            setFriendSocialMode(FRIEND_SOCIAL_MODE_FRIENDS);
+            friendSocialScrollOffsets[FRIEND_SOCIAL_MODE_SEARCH] = 0;
+            if (keepInputFocus)
+            {
+                friendSocialSearchInput.setFocusWithKb(true);
+            }
+            return true;
+        }
+
+        private void startFriendSocialSearch(string query)
+        {
+            string normalized = (query ?? string.Empty).Trim();
+            if (restoreFriendListWhenSearchIsEmpty(normalized))
+            {
+                return;
+            }
+            if (normalized.Length < 2)
+            {
+                GameScr.info1.addInfo("Cần nhập ít nhất 2 ký tự", 0);
+                return;
+            }
+            if (normalized.Length > 32)
+            {
+                normalized = normalized.Substring(0, 32);
+            }
+            friendSocialSearchQuery = normalized;
+            ensureFriendSocialSearchInput();
+            friendSocialSearchInput.setText(normalized);
+            if (friendSocialMode != FRIEND_SOCIAL_MODE_SEARCH)
+            {
+                setFriendSocialMode(FRIEND_SOCIAL_MODE_SEARCH);
+            }
+            friendSocialSearchRequestToken = nextFriendSocialRequestToken(friendSocialSearchRequestToken);
+            Service.gI().searchFriendSocialV2(friendSocialSearchRequestToken, 0, friendSocialSearchQuery);
+            refreshFriendSocialScroll(restoreModeOffset: true);
+        }
+
+        private void ensureFriendSocialInboxLoaded()
+        {
+            FriendSocialState state = FriendSocialState.gI();
+            if (state.Inbox.IsLoading || state.Inbox.Results.Count != 0)
+            {
+                return;
+            }
+            friendSocialInboxRequestToken = nextFriendSocialRequestToken(friendSocialInboxRequestToken);
+            Service.gI().loadFriendSocialV2Inbox(friendSocialInboxRequestToken, 0);
+        }
+
+        private void tryRequestFriendSocialNextPage()
+        {
+            FriendSocialState state = FriendSocialState.gI();
+            if (friendSocialMode == FRIEND_SOCIAL_MODE_SEARCH)
+            {
+                if (string.IsNullOrEmpty(friendSocialSearchQuery) || state.Search.IsLoading || !state.Search.HasMore)
+                {
+                    return;
+                }
+                Service.gI().searchFriendSocialV2(friendSocialSearchRequestToken, state.Search.NextCursor, friendSocialSearchQuery);
+            }
+            else if (friendSocialMode == FRIEND_SOCIAL_MODE_INBOX && !state.Inbox.IsLoading && state.Inbox.HasMore)
+            {
+                Service.gI().loadFriendSocialV2Inbox(friendSocialInboxRequestToken, state.Inbox.NextCursor);
+            }
+            friendSocialBottomReleaseSeen = false;
+        }
+
+        private static int nextFriendSocialRequestToken(int current)
+        {
+            return (current == int.MaxValue) ? 1 : current + 1;
         }
 
         private bool paintClanFeatureRow(mGraphics g, int row)
@@ -8082,9 +9571,20 @@ paintScrollArrow(g);
             }
             if (type == 11)
             {
-                g.setColor(13524492);
+                g.setColor(FRIEND_SOCIAL_COLOR_DIVIDER);
                 g.fillRect(X + 1, 78, W - 2, 1);
-                mFont.tahoma_7b_dark.drawString(g, mResources.friend, xScroll + wScroll / 2, 59, mFont.CENTER);
+                if (friendSocialChatOnly)
+                {
+                    paintFriendSocialChatTitle(g);
+                }
+                else if (isFriendSocialV2Enabled())
+                {
+                    paintFriendSocialTitle(g);
+                }
+                else
+                {
+                    mFont.tahoma_7b_dark.drawString(g, mResources.friend, xScroll + wScroll / 2, 59, mFont.CENTER);
+                }
                 return;
             }
             if (type == 12 && GameCanvas.panel2 != null)
@@ -8508,6 +10008,65 @@ paintScrollArrow(g);
             paintCharInfo(g, Char.myCharz());
         }
 
+        private void paintFriendSocialTopInfo(mGraphics g)
+        {
+            Char character = Char.myCharz();
+            FriendSocialState state = FriendSocialState.gI();
+            int limit = (state.FriendLimit > 0) ? state.FriendLimit : 100;
+            int friends = vFriend.size();
+            mFont.tahoma_7b_white.drawString(g, character.cName, X + 60, 4, mFont.LEFT, mFont.tahoma_7b_dark);
+            if (character.cMaxStamina > 0)
+            {
+                mFont.tahoma_7_yellow.drawString(g, mResources.vitality, X + 60, 16, mFont.LEFT, mFont.tahoma_7_grey);
+                g.drawImage(GameScr.imgMPLost, X + 95, 19, 0);
+                int staminaWidth = character.cStamina * mGraphics.getImageWidth(GameScr.imgMP) / character.cMaxStamina;
+                g.setClip(95, X + 19, staminaWidth, 20);
+                g.drawImage(GameScr.imgMP, X + 95, 19, 0);
+                g.setClip(0, 0, GameCanvas.w, GameCanvas.h);
+            }
+            mFont.tahoma_7_yellow.drawString(g, "Bạn bè: " + friends + "/" + limit, X + 60, 27, mFont.LEFT, mFont.tahoma_7_grey);
+            mFont.tahoma_7_yellow.drawString(g, "Bạn bè online: " + state.OnlineFriendCount + "/" + friends,
+                X + 60, 38, mFont.LEFT, mFont.tahoma_7_grey);
+        }
+
+        private void paintFriendSocialChatTopInfo(mGraphics g)
+        {
+            FriendSocialState state = FriendSocialState.gI();
+            FriendSocialProfile profile = state.Profile;
+            int friendId = state.ActiveChatFriendId;
+            if (profile == null || profile.FriendId != friendId)
+            {
+                profile = null;
+            }
+            InfoItem info = findFriendSocialInfo(friendId);
+            string name = (profile != null && !string.IsNullOrEmpty(profile.Name)) ? profile.Name
+                : ((info != null && info.charInfo != null) ? info.charInfo.cName : "Đang tải...");
+            string clan = (profile != null && !string.IsNullOrEmpty(profile.ClanName)) ? profile.ClanName : "Chưa có";
+            string activity = (profile != null && !string.IsNullOrEmpty(profile.ActivityLabel)) ? profile.ActivityLabel
+                : (isFriendSocialChatOnline(friendId) ? "Đang online" : "Offline");
+            string power = (profile != null && !string.IsNullOrEmpty(profile.FormattedPower)) ? profile.FormattedPower
+                : ((profile != null) ? NinjaUtil.getMoneys(profile.RawPower) : "?");
+            int head = (profile != null) ? profile.Head
+                : ((info != null && info.charInfo != null) ? info.charInfo.head : -1);
+
+            mFont.tahoma_7b_white.drawString(g, name, X + 8, 4, mFont.LEFT, mFont.tahoma_7b_dark);
+            mFont.tahoma_7_yellow.drawString(g, "Bang hội: " + clan, X + 8, 16, mFont.LEFT, mFont.tahoma_7_grey);
+            mFont.tahoma_7_yellow.drawString(g, "Hoạt động: " + activity, X + 8, 27, mFont.LEFT, mFont.tahoma_7_grey);
+            mFont.tahoma_7_yellow.drawString(g, "Sức mạnh: " + power, X + 8, 38, mFont.LEFT, mFont.tahoma_7_grey);
+            paintFriendSocialChatTopAvatar(g, (info == null) ? null : info.charInfo, head);
+        }
+
+        private void paintFriendSocialChatTopAvatar(mGraphics g, Char character, int fallbackHead)
+        {
+            int avatar = (character == null) ? Char.myCharz().getAvatar(fallbackHead) : character.avatarz();
+            if (avatar >= 0)
+            {
+                SmallImage.drawSmallImage(g, avatar, X + W - 32, 50, 0, 33);
+                return;
+            }
+            paintFriendSocialAvatar(g, character, fallbackHead, X + W - 55, 4);
+        }
+
         private void paintPetInfo(mGraphics g, bool isPet2)
         {
             Char @char = (isPet2 ? Char.MyPet2z() : Char.myPetz());
@@ -8843,6 +10402,21 @@ paintScrollArrow(g);
                     }
                     break;
                 case 11:
+                    if (friendSocialChatOnly)
+                    {
+                        paintFriendSocialChatTopInfo(g);
+                    }
+                    else if (isFriendSocialV2Enabled())
+                    {
+                        SmallImage.drawSmallImage(g, Char.myCharz().avatarz(), X + 25, 50, 0, 33);
+                        paintFriendSocialTopInfo(g);
+                    }
+                    else
+                    {
+                        SmallImage.drawSmallImage(g, Char.myCharz().avatarz(), X + 25, 50, 0, 33);
+                        paintMyInfo(g);
+                    }
+                    break;
                 case 16:
                 case 23:
                 case 24:
@@ -9360,6 +10934,11 @@ paintScrollArrow(g);
                 isClose = false;
                 return;
             }
+            if (friendSocialChatOnly)
+            {
+                closeFriendSocialChat();
+                return;
+            }
             activityPanelOpen = false;
             activityPanelPage = ACTIVITY_PAGE_OVERVIEW;
             if (isTypeShop())
@@ -9447,6 +11026,14 @@ paintScrollArrow(g);
 
         public void update()
         {
+            if (friendSocialChatOnly)
+            {
+                updateFriendSocialChatInput();
+            }
+            else if (isFriendSocialV2Enabled())
+            {
+                updateFriendSocialSearchInput();
+            }
             if (chatTField != null && chatTField.isShow)
             {
                 chatTField.update();
@@ -11185,6 +12772,16 @@ else
 
         private void doFireFriend()
         {
+            if (friendSocialChatOnly)
+            {
+                doFireFriendSocialChat();
+                return;
+            }
+            if (isFriendSocialV2Enabled())
+            {
+                doFireFriendSocial();
+                return;
+            }
             if (selected >= 0 && vFriend.size() != 0)
             {
                 MyVector myVector = new MyVector();
@@ -12007,6 +13604,11 @@ else
 
         public void perform(int idAction, object p)
         {
+            if (idAction == FRIEND_SOCIAL_EMOJI_ACTION)
+            {
+                appendFriendSocialChatExpression(p as string);
+                return;
+            }
             switch (idAction)
             {
                 case 8011:
@@ -12724,6 +14326,13 @@ else
                 string currencyName = (currency == ClanTreasury.CURRENCY_GOLD) ? "Vàng" : "Ngọc";
                 ClanTreasuryDepositRequest request = new ClanTreasuryDepositRequest(currency, amount);
                 GameCanvas.startYesNoDlg("Đóng góp " + amount + " " + currencyName + " vào kho bang? Khoản này không thể rút lại.", new Command(mResources.YES, this, 14020, request), new Command(mResources.NO, this, 4005, null));
+                return;
+            }
+            else if (chatTField.strChat.Equals(SOCIAL_V2_SEARCH_INPUT))
+            {
+                chatTField.isShow = false;
+                chatTField.tfChat.setMaxTextLenght(80);
+                startFriendSocialSearch(text);
                 return;
             }
             if (chatTField.tfChat.getText() == null || chatTField.tfChat.getText().Equals(string.Empty) || text.Equals(string.Empty) || text == null)
@@ -14030,6 +15639,71 @@ else
                     return 0;
                 default:
                     return 0;
+            }
+        }
+
+        private void doFireFriendSocial()
+        {
+            if (selected < 0 || selected >= getFriendSocialListLength())
+            {
+                return;
+            }
+            FriendSocialState state = FriendSocialState.gI();
+            if (friendSocialMode == FRIEND_SOCIAL_MODE_FRIENDS)
+            {
+                if (selected >= vFriend.size())
+                {
+                    return;
+                }
+                InfoItem info = (InfoItem)vFriend.elementAt(selected);
+                if (info == null || info.charInfo == null)
+                {
+                    return;
+                }
+                int friendId = info.charInfo.charID;
+                if (GameCanvas.isTouch && GameCanvas.px >= xScroll + wScroll - 24)
+                {
+                    Service.gI().friend(2, friendId);
+                    return;
+                }
+                bool online = info.isOnline;
+                bool knownOnline;
+                if (state.FriendOnline.TryGetValue(friendId, out knownOnline))
+                {
+                    online = knownOnline;
+                }
+                if (!online)
+                {
+                    GameScr.info1.addInfo("Bạn hiện offline", 0);
+                    return;
+                }
+                openFriendSocialChat(friendId);
+                return;
+            }
+            if (friendSocialMode == FRIEND_SOCIAL_MODE_SEARCH)
+            {
+                FriendSearchResult result = state.Search.Results[selected];
+                if (result.Relationship == 2 && Service.gI().sendFriendSocialV2Request(result.PlayerId))
+                {
+                    result.Relationship = 1;
+                }
+                return;
+            }
+            FriendInboxRequest request = state.Inbox.Results[selected];
+            if (state.IsInboxOperationPending)
+            {
+                return;
+            }
+            bool reject = GameCanvas.isTouch
+                && GameCanvas.px >= xScroll + wScroll - 49
+                && GameCanvas.px < xScroll + wScroll - 24;
+            if (reject)
+            {
+                Service.gI().rejectFriendSocialV2Request(request.RequestId);
+            }
+            else
+            {
+                Service.gI().acceptFriendSocialV2Request(request.RequestId);
             }
         }
 

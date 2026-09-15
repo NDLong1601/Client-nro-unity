@@ -5060,7 +5060,8 @@ namespace Game1
 				}
 				ChatTextField.gI().paint(g);
 				NewBagUI.GI().Paint(g);
-				if (isNewClanMessage && !GameCanvas.panel.isShow && GameCanvas.gameTick % 4 == 0)
+				if ((isNewClanMessage || FriendSocialState.gI().HasUnreadMessages)
+					&& !GameCanvas.panel.isShow && GameCanvas.gameTick % 4 == 0)
 				{
 					g.drawImage(ItemMap.imageFlare, cmdMenu.x + 15, cmdMenu.y + 30, mGraphics.BOTTOM | mGraphics.HCENTER);
 				}

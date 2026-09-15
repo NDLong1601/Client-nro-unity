@@ -1023,6 +1023,13 @@ namespace Game1
 				{
 					sbyte b46 = msg.reader().readByte();
 					InfoDlg.hide();
+					FriendSocialState friendSocialState = FriendSocialState.gI();
+					if (b46 >= 4 && b46 <= 12)
+					{
+						int localPlayerId = (Char.myCharz() == null) ? (-1) : Char.myCharz().charID;
+						FriendSocialProtocol.TryHandleAction(b46, msg.reader(), friendSocialState, localPlayerId);
+						break;
+					}
 					if (b46 == 0)
 					{
 						GameCanvas.panel.vFriend.removeAllElements();
@@ -1043,19 +1050,26 @@ namespace Game1
 							infoItem2.isOnline = isOnline2;
 							GameCanvas.panel.vFriend.addElement(infoItem2);
 						}
+						FriendSocialProtocol.TryReadCapabilityTail(msg.reader(), friendSocialState);
 						GameCanvas.panel.setTypeFriend();
 						GameCanvas.panel.show();
 					}
 					if (b46 == 3)
 					{
+						if (!friendSocialState.SupportsSocialV2)
+						{
+							break;
+						}
 						MyVector vFriend = GameCanvas.panel.vFriend;
 						int num172 = msg.reader().readInt();
+						bool isOnline3 = msg.reader().readBoolean();
+						friendSocialState.SetPresence(num172, isOnline3);
 						for (int num173 = 0; num173 < vFriend.size(); num173++)
 						{
 							InfoItem infoItem3 = (InfoItem)vFriend.elementAt(num173);
 							if (infoItem3.charInfo != null && infoItem3.charInfo.charID == num172)
 							{
-								infoItem3.isOnline = msg.reader().readBoolean();
+								infoItem3.isOnline = isOnline3;
 								break;
 							}
 						}
@@ -1066,6 +1080,7 @@ namespace Game1
 					}
 					MyVector vFriend2 = GameCanvas.panel.vFriend;
 					int num174 = msg.reader().readInt();
+					friendSocialState.RemoveFriend(num174);
 					for (int num175 = 0; num175 < vFriend2.size(); num175++)
 					{
 						InfoItem infoItem4 = (InfoItem)vFriend2.elementAt(num175);
@@ -3946,6 +3961,7 @@ namespace Game1
 						GameScr.info1.addInfo(empty, 0);
 						break;
 					}
+					FriendSocialProtocol.TryAppendPrivateChat(FriendSocialState.gI(), Char.myCharz().charID, char2.charID, str);
 					GameScr.info2.addInfoWithChar(empty, char2, b2 == 0);
 					if (GameCanvas.panel.isShow && GameCanvas.panel.type == 8)
 					{
