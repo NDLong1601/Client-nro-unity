@@ -3,6 +3,11 @@ using System.Collections.Generic;
 using System.Threading;
 using Game2.Assets.src.g;
 using Game2.Mod.XMAP;
+using Game2.UI;
+using Game2.UI.Adapters;
+using Game2.UI.PanelContent;
+using Game2.UI.Pilots;
+using Nro.UI;
 using UnityEditor;
 using UnityEngine;
 using static Unity.IO.LowLevel.Unsafe.AsyncReadManagerMetrics;
@@ -177,6 +182,30 @@ namespace Game2
         public const string ACTIVITY_TOOL = "Năng động";
 
         private const int TYPE_PK_HISTORY = 29;
+
+        public static bool USE_NEW_PK_HISTORY_UI = true;
+
+        public static bool USE_NEW_TOP_UI = true;
+
+        public static bool USE_NEW_ENEMY_UI = true;
+
+        public static bool USE_TOP_PANEL_CONTENT = true;
+
+        private TopPanelContent topPanelContent;
+
+        private TopContentAction pendingTopAction = TopContentAction.None;
+
+        public static bool USE_ENEMY_PANEL_CONTENT = true;
+
+        private EnemyPanelContent enemyPanelContent;
+
+        private EnemyPanelLifecycle enemyLifecycle = new EnemyPanelLifecycle();
+
+        private EnemyContentAction pendingEnemyAction = EnemyContentAction.None;
+
+        private UiInputContext _uiInputContext = new UiInputContext();
+
+        public static bool USE_NEW_FRIEND_SEARCH_INPUT_UI = true;
 
         private const int ACTIVITY_PAGE_OVERVIEW = 0;
 
@@ -637,6 +666,8 @@ namespace Game2
         private string friendSocialSearchQuery = string.Empty;
 
         private TField friendSocialSearchInput;
+
+        private TextFieldAdapter friendSocialSearchAdapter;
 
         private bool friendSocialBottomReleaseSeen;
 
@@ -1348,6 +1379,8 @@ namespace Game2
 
         private void setType(int position)
         {
+            unbindTopContentWhenLeavingType();
+            unbindEnemyContentWhenLeavingType();
             typeShop = -1;
             W = WIDTH_PANEL;
             H = GameCanvas.h;
@@ -1608,31 +1641,46 @@ namespace Game2
 
         public void setTypeEnemy()
         {
+            cancelPendingEnemyAction();
             type = 16;
             setType(0);
             ITEM_HEIGHT = 24;
+            if (USE_ENEMY_PANEL_CONTENT)
+            {
+                ensureEnemyPanelContent();
+                enemyPanelContent.Bind(vEnemy, new UiRect(xScroll, yScroll, wScroll, hScroll), GameCanvas.isTouch);
+                return;
+            }
             selected = (GameCanvas.isTouch ? (-1) : 0);
             setTabEnemy();
         }
 
         public void setTypeTop(sbyte t)
         {
+            cancelPendingTopAction();
             type = 15;
             setType(0);
             ITEM_HEIGHT = 24;
+            isThachDau = t != 0;
+            if (USE_TOP_PANEL_CONTENT)
+            {
+                ensureTopPanelContent();
+                topPanelContent.Bind(vTop, topName, isThachDau, new UiRect(xScroll, yScroll, wScroll, hScroll), GameCanvas.isTouch);
+                return;
+            }
             selected = (GameCanvas.isTouch ? (-1) : 0);
             setTabTop();
-            isThachDau = t != 0;
         }
-
         public void setTabTop()
         {
-            currentListLength = vTop.size();
-            cmyLim = currentListLength * ITEM_HEIGHT - hScroll;
-            if (cmyLim < 0)
+            if (USE_TOP_PANEL_CONTENT && topPanelContent != null && topPanelContent.IsBound)
             {
-                cmyLim = 0;
+                cancelPendingTopAction();
+                topPanelContent.Refresh(vTop, new UiRect(xScroll, yScroll, wScroll, hScroll));
+                return;
             }
+            currentListLength = vTop.size();
+            cmyLim = UiListLayout.CalculateMaxScroll(currentListLength, ITEM_HEIGHT, hScroll);
             cmy = (cmtoY = cmyLast[currentTabIndex]);
             if (cmy < 0)
             {
@@ -1675,6 +1723,12 @@ namespace Game2
 
         public void setTabEnemy()
         {
+            if (USE_ENEMY_PANEL_CONTENT && enemyPanelContent != null && enemyPanelContent.IsBound)
+            {
+                cancelPendingEnemyAction();
+                enemyPanelContent.Refresh(vEnemy, new UiRect(xScroll, yScroll, wScroll, hScroll));
+                return;
+            }
             currentListLength = vEnemy.size();
             cmyLim = currentListLength * ITEM_HEIGHT - hScroll;
             if (cmyLim < 0)
@@ -2463,7 +2517,7 @@ namespace Game2
                         waitToPerform = 2;
                     }
                 }
-                if (Equals(GameCanvas.panel) && GameCanvas.panel2 == null && GameCanvas.isPointerJustRelease && !GameCanvas.isPointer(X, Y, W, H) && !pointerIsDowning && !isPointerOnPKHistoryReloadButton())
+                if (Equals(GameCanvas.panel) && GameCanvas.panel2 == null && GameCanvas.isPointerJustRelease && !GameCanvas.isPointer(X, Y, W, H) && !pointerIsDowning && !isTopContentDragging() && !isEnemyContentDragging() && !isPointerOnPKHistoryReloadButton())
                 {
                     if (isActivityDashboardVisible())
                     {
@@ -2543,8 +2597,6 @@ namespace Game2
                     case 9:
                     case 10:
                     case 14:
-                    case 15:
-                    case 16:
                     case 18:
                     case 23:
                     case 24:
@@ -2552,6 +2604,26 @@ namespace Game2
                     case 27:
                     case TYPE_PK_HISTORY:
                         updateKeyScrollView();
+                        break;
+                    case 16:
+                        if (isEnemyContentActive())
+                        {
+                            updateKeyEnemyContent();
+                        }
+                        else
+                        {
+                            updateKeyScrollView();
+                        }
+                        break;
+                    case 15:
+                        if (USE_TOP_PANEL_CONTENT)
+                        {
+                            updateKeyTopContent();
+                        }
+                        else
+                        {
+                            updateKeyScrollView();
+                        }
                         break;
                     case 11:
                         if (friendSocialChatOnly)
@@ -3211,6 +3283,16 @@ namespace Game2
             if (GameCanvas.pxMouse < xScroll || GameCanvas.pxMouse > xScroll + wScroll
                 || GameCanvas.pyMouse < yScroll || GameCanvas.pyMouse > yScroll + hScroll)
             {
+                return;
+            }
+            if (isTopContentActive())
+            {
+                topPanelContent.UpdateScrollMouse(a);
+                return;
+            }
+            if (isEnemyContentActive())
+            {
+                enemyPanelContent.UpdateScrollMouse(a);
                 return;
             }
             if (friendSocialChatOnly)
@@ -5126,35 +5208,42 @@ else
                 vPlayerMenu.removeAllElements();
                 charMenu = null;
             }
-            if (cmRun != 0 && !pointerIsDowning)
+            if (!isTopContentActive())
             {
-                cmtoY += cmRun / 100;
-                if (cmtoY < 0)
+                if (isEnemyContentActive())
                 {
-                    cmtoY = 0;
+                    return;
                 }
-                else if (cmtoY > cmyLim)
+                if (cmRun != 0 && !pointerIsDowning)
                 {
-                    cmtoY = cmyLim;
+                    cmtoY += cmRun / 100;
+                    if (cmtoY < 0)
+                    {
+                        cmtoY = 0;
+                    }
+                    else if (cmtoY > cmyLim)
+                    {
+                        cmtoY = cmyLim;
+                    }
+                    else
+                    {
+                        cmy = cmtoY;
+                    }
+                    cmRun = cmRun * 9 / 10;
+                    if (cmRun < 100 && cmRun > -100)
+                    {
+                        cmRun = 0;
+                    }
                 }
-                else
+                if (cmy != cmtoY && !pointerIsDowning)
                 {
-                    cmy = cmtoY;
+                    cmvy = cmtoY - cmy << 2;
+                    cmdy += cmvy;
+                    cmy += cmdy >> 4;
+                    cmdy &= 15;
                 }
-                cmRun = cmRun * 9 / 10;
-                if (cmRun < 100 && cmRun > -100)
-                {
-                    cmRun = 0;
-                }
+                cmyLast[currentTabIndex] = cmy;
             }
-            if (cmy != cmtoY && !pointerIsDowning)
-            {
-                cmvy = cmtoY - cmy << 2;
-                cmdy += cmvy;
-                cmy += cmdy >> 4;
-                cmdy &= 15;
-            }
-            cmyLast[currentTabIndex] = cmy;
         }
 
         public void paintDetail(mGraphics g)
@@ -5217,23 +5306,78 @@ else
 
         public void paintTop(mGraphics g)
         {
-            g.setClip(xScroll, yScroll, wScroll, hScroll);
-            g.translate(0, -cmy);
-            g.setColor(0);
+            if (USE_TOP_PANEL_CONTENT)
+            {
+                if (topPanelContent != null && topPanelContent.IsActive)
+                {
+                    if (USE_NEW_TOP_UI)
+                    {
+                        topPanelContent.Paint(g, Char.myCharz().charID);
+                    }
+                    else
+                    {
+                        paintTopLegacy(g, topPanelContent.ScrollY, topPanelContent.SelectedIndex, topPanelContent.ItemsCount);
+                    }
+                    paintScrollArrow(g, topPanelContent.ScrollY, topPanelContent.ScrollLimit, topPanelContent.ItemsCount);
+                }
+                return;
+            }
+            if (USE_NEW_TOP_UI)
+            {
+                paintTopComponent(g);
+            }
+            else
+            {
+                paintTopLegacy(g);
+            }
+        }
+
+        private void paintTopComponent(mGraphics g)
+        {
             if (currentListLength == 0)
             {
                 return;
             }
-            int num = (cmy + hScroll) / 24 + 1;
+            TopRankingView.Paint(
+                g,
+                xScroll,
+                yScroll,
+                wScroll,
+                hScroll,
+                cmy,
+                selected,
+                vTop,
+                currentListLength,
+                Char.myCharz().charID
+            );
+            paintScrollArrow(g);
+        }
+
+        private void paintTopLegacy(mGraphics g)
+        {
+            paintTopLegacy(g, cmy, selected, currentListLength);
+            paintScrollArrow(g);
+        }
+
+        private void paintTopLegacy(mGraphics g, int scrollY, int selectedIndex, int itemCount)
+        {
+            g.setClip(xScroll, yScroll, wScroll, hScroll);
+            g.translate(0, -scrollY);
+            g.setColor(0);
+            if (itemCount == 0)
+            {
+                return;
+            }
+            int num = (scrollY + hScroll) / 24 + 1;
             if (num < hScroll / 24 + 1)
             {
                 num = hScroll / 24 + 1;
             }
-            if (num > currentListLength)
+            if (num > itemCount)
             {
-                num = currentListLength;
+                num = itemCount;
             }
-            int num2 = cmy / 24;
+            int num2 = scrollY / 24;
             if (num2 >= num)
             {
                 num2 = num - 1;
@@ -5252,9 +5396,9 @@ else
                 int num7 = yScroll + i * ITEM_HEIGHT;
                 int num8 = wScroll - num5;
                 int num9 = ITEM_HEIGHT - 1;
-                g.setColor((i != selected) ? 15196114 : 16383818);
+                g.setColor((i != selectedIndex) ? 15196114 : 16383818);
                 g.fillRect(num6, num7, num8, num9, 5);
-                g.setColor((i != selected) ? 9993045 : 9541120);
+                g.setColor((i != selectedIndex) ? 9993045 : 9541120);
                 g.fillRect(num3, num4, num5, h, 5);
                 TopInfo topInfo = (TopInfo)vTop.elementAt(i);
                 if (topInfo.headICON != -1)
@@ -5266,7 +5410,7 @@ else
                     Part part = GameScr.parts[topInfo.headID];
                     SmallImage.drawSmallImage(g, part.pi[Char.CharInfo[0][0][0]].id, num3 + part.pi[Char.CharInfo[0][0][0]].dx, num4 + num9 - 1, 0, mGraphics.BOTTOM | mGraphics.LEFT);
                 }
-                g.setClip(xScroll, yScroll + cmy, wScroll, hScroll);
+                g.setClip(xScroll, yScroll + scrollY, wScroll, hScroll);
                 if (topInfo.pId != Char.myCharz().charID)
                 {
                     mFont.tahoma_7b_green.drawString(g, topInfo.name, num6 + 5, num7, 0);
@@ -5278,7 +5422,6 @@ else
                 mFont.tahoma_7_blue.drawString(g, topInfo.info, num6 + num8 - 5, num7 + 11, 1);
                 mFont.tahoma_7_green2.drawString(g, mResources.rank + ": " + topInfo.rank + string.Empty, num6 + 5, num7 + 11, 0);
             }
-            paintScrollArrow(g);
         }
 
         public void paint(mGraphics g)
@@ -6001,12 +6144,17 @@ else
 
         private void paintScrollArrow(mGraphics g)
         {
+            paintScrollArrow(g, cmy, cmyLim, currentListLength);
+        }
+
+        private void paintScrollArrow(mGraphics g, int scrollY, int scrollLimit, int itemCount)
+        {
             g.translate(-g.getTranslateX(), -g.getTranslateY());
-            if ((cmy > 24 && currentListLength > 0) || (Equals(GameCanvas.panel) && typeShop == 2 && maxPageShop[currentTabIndex] > 1))
+            if ((scrollY > 24 && itemCount > 0) || (Equals(GameCanvas.panel) && typeShop == 2 && maxPageShop[currentTabIndex] > 1))
             {
                 g.drawRegion(Mob.imgHP, 0, 0, 9, 6, 1, xScroll + wScroll - 12, yScroll + 3, 0);
             }
-            if ((cmy < cmyLim && currentListLength > 0) || (Equals(GameCanvas.panel) && typeShop == 2 && maxPageShop[currentTabIndex] > 1))
+            if ((scrollY < scrollLimit && itemCount > 0) || (Equals(GameCanvas.panel) && typeShop == 2 && maxPageShop[currentTabIndex] > 1))
             {
                 g.drawRegion(Mob.imgHP, 0, 0, 9, 6, 0, xScroll + wScroll - 12, yScroll + hScroll - 8, 0);
             }
@@ -6882,15 +7030,51 @@ else
 
         private void paintEnemy(mGraphics g)
         {
+            if (isEnemyContentActive())
+            {
+                if (USE_NEW_ENEMY_UI)
+                {
+                    enemyPanelContent.Paint(g);
+                }
+                else
+                {
+                    paintEnemyLegacy(g, enemyPanelContent.ScrollY, enemyPanelContent.SelectedIndex, enemyPanelContent.ItemsCount);
+                }
+                paintScrollArrow(g, enemyPanelContent.ScrollY, enemyPanelContent.ScrollLimit, enemyPanelContent.ItemsCount);
+                return;
+            }
+            if (USE_NEW_ENEMY_UI)
+            {
+                EnemyListView.Paint(
+                    g,
+                    xScroll,
+                    yScroll,
+                    wScroll,
+                    hScroll,
+                    cmy,
+                    selected,
+                    vEnemy,
+                    currentListLength
+                );
+            }
+            else
+            {
+                paintEnemyLegacy(g, cmy, selected, currentListLength);
+            }
+            paintScrollArrow(g);
+        }
+
+        private void paintEnemyLegacy(mGraphics g, int scrollY, int selectedIndex, int itemCount)
+        {
             g.setClip(xScroll, yScroll, wScroll, hScroll);
-            g.translate(0, -cmy);
+            g.translate(0, -scrollY);
             g.setColor(0);
-            if (currentListLength == 0)
+            if (itemCount == 0)
             {
                 mFont.tahoma_7_green2.drawString(g, mResources.no_enemy, xScroll + wScroll / 2, yScroll + hScroll / 2 - mFont.tahoma_7.getHeight() / 2, 2);
                 return;
             }
-            for (int i = 0; i < currentListLength; i++)
+            for (int i = 0; i < itemCount; i++)
             {
                 int num = xScroll;
                 int num2 = yScroll + i * ITEM_HEIGHT;
@@ -6900,9 +7084,9 @@ else
                 int num5 = yScroll + i * ITEM_HEIGHT;
                 int num6 = wScroll - num3;
                 int h2 = ITEM_HEIGHT - 1;
-                g.setColor((i != selected) ? 15196114 : 16383818);
+                g.setColor((i != selectedIndex) ? 15196114 : 16383818);
                 g.fillRect(num4, num5, num6, h2);
-                g.setColor((i != selected) ? 9993045 : 9541120);
+                g.setColor((i != selectedIndex) ? 9993045 : 9541120);
                 g.fillRect(num, num2, num3, h);
                 InfoItem infoItem = (InfoItem)vEnemy.elementAt(i);
                 if (infoItem.charInfo.headICON != -1)
@@ -6914,7 +7098,7 @@ else
                     Part part = GameScr.parts[infoItem.charInfo.head];
                     SmallImage.drawSmallImage(g, part.pi[Char.CharInfo[0][0][0]].id, num + part.pi[Char.CharInfo[0][0][0]].dx, num2 + 3 + part.pi[Char.CharInfo[0][0][0]].dy, 0, 0);
                 }
-                g.setClip(xScroll, yScroll + cmy, wScroll, hScroll);
+                g.setClip(xScroll, yScroll + scrollY, wScroll, hScroll);
                 if (infoItem.isOnline)
                 {
                     mFont.tahoma_7b_green.drawString(g, infoItem.charInfo.cName, num4 + 5, num5, 0);
@@ -6926,7 +7110,6 @@ else
                     mFont.tahoma_7_grey.drawString(g, infoItem.s, num4 + 5, num5 + 11, 0);
                 }
             }
-            paintScrollArrow(g);
         }
 
         private void paintFriend(mGraphics g)
@@ -8246,7 +8429,14 @@ else
             friendSocialPointerDownAtBottom = false;
             if (mode != FRIEND_SOCIAL_MODE_SEARCH && friendSocialSearchInput != null)
             {
-                friendSocialSearchInput.setFocusWithKb(false);
+                if (USE_NEW_FRIEND_SEARCH_INPUT_UI && friendSocialSearchAdapter != null)
+                {
+                    friendSocialSearchAdapter.SetFocused(false);
+                }
+                else
+                {
+                    friendSocialSearchInput.setFocusWithKb(false);
+                }
             }
             refreshFriendSocialScroll(restoreModeOffset: true);
             selected = (GameCanvas.isTouch ? (-1) : 0);
@@ -8293,22 +8483,45 @@ else
         {
             refreshFriendSocialScroll(restoreModeOffset: false);
             ensureFriendSocialSearchInput();
-            if (friendSocialSearchInput.isFocus && GameCanvas.keyAsciiPress != 0)
+            if (USE_NEW_FRIEND_SEARCH_INPUT_UI && friendSocialSearchAdapter != null)
             {
-                friendSocialSearchInput.keyPressed(GameCanvas.keyAsciiPress);
-                GameCanvas.keyAsciiPress = 0;
+                if (friendSocialSearchAdapter.IsFocused && GameCanvas.keyAsciiPress != 0)
+                {
+                    friendSocialSearchAdapter.KeyPressed(GameCanvas.keyAsciiPress);
+                    GameCanvas.keyAsciiPress = 0;
+                }
+                if (Main.isPC && friendSocialSearchAdapter.IsFocused && GameCanvas.keyPressed[14])
+                {
+                    GameCanvas.keyPressed[14] = false;
+                    friendSocialSearchAdapter.KeyPressed(-8);
+                }
+                if (friendSocialSearchAdapter.IsFocused && GameCanvas.keyPressed[15])
+                {
+                    GameCanvas.keyPressed[15] = false;
+                    startFriendSocialSearch(friendSocialSearchAdapter.GetText());
+                    friendSocialSearchAdapter.SetFocused(false);
+                    return;
+                }
             }
-            if (Main.isPC && friendSocialSearchInput.isFocus && GameCanvas.keyPressed[14])
+            else
             {
-                GameCanvas.keyPressed[14] = false;
-                friendSocialSearchInput.keyPressed(-8);
-            }
-            if (friendSocialSearchInput.isFocus && GameCanvas.keyPressed[15])
-            {
-                GameCanvas.keyPressed[15] = false;
-                startFriendSocialSearch(friendSocialSearchInput.getText());
-                friendSocialSearchInput.setFocusWithKb(false);
-                return;
+                if (friendSocialSearchInput.isFocus && GameCanvas.keyAsciiPress != 0)
+                {
+                    friendSocialSearchInput.keyPressed(GameCanvas.keyAsciiPress);
+                    GameCanvas.keyAsciiPress = 0;
+                }
+                if (Main.isPC && friendSocialSearchInput.isFocus && GameCanvas.keyPressed[14])
+                {
+                    GameCanvas.keyPressed[14] = false;
+                    friendSocialSearchInput.keyPressed(-8);
+                }
+                if (friendSocialSearchInput.isFocus && GameCanvas.keyPressed[15])
+                {
+                    GameCanvas.keyPressed[15] = false;
+                    startFriendSocialSearch(friendSocialSearchInput.getText());
+                    friendSocialSearchInput.setFocusWithKb(false);
+                    return;
+                }
             }
             if (handleFriendSocialHeaderTouch())
             {
@@ -8366,14 +8579,31 @@ else
                 else if (localX >= wScroll - FRIEND_SOCIAL_TOOLBAR_ACTION_SIZE * 2 - 4)
                 {
                     ensureFriendSocialSearchInput();
-                    if (friendSocialSearchInput.getText().Trim().Length < 2)
+                    string queryText = (USE_NEW_FRIEND_SEARCH_INPUT_UI && friendSocialSearchAdapter != null)
+                        ? friendSocialSearchAdapter.GetText()
+                        : friendSocialSearchInput.getText();
+                    if (queryText.Trim().Length < 2)
                     {
-                        friendSocialSearchInput.setFocusWithKb(true);
+                        if (USE_NEW_FRIEND_SEARCH_INPUT_UI && friendSocialSearchAdapter != null)
+                        {
+                            friendSocialSearchAdapter.SetFocused(true);
+                        }
+                        else
+                        {
+                            friendSocialSearchInput.setFocusWithKb(true);
+                        }
                     }
                     else
                     {
-                        startFriendSocialSearch(friendSocialSearchInput.getText());
-                        friendSocialSearchInput.setFocusWithKb(false);
+                        startFriendSocialSearch(queryText);
+                        if (USE_NEW_FRIEND_SEARCH_INPUT_UI && friendSocialSearchAdapter != null)
+                        {
+                            friendSocialSearchAdapter.SetFocused(false);
+                        }
+                        else
+                        {
+                            friendSocialSearchInput.setFocusWithKb(false);
+                        }
                     }
                 }
                 else
@@ -8390,10 +8620,66 @@ else
         private void openFriendSocialSearchInput()
         {
             ensureFriendSocialSearchInput();
-            friendSocialSearchInput.setFocusWithKb(true);
+            if (USE_NEW_FRIEND_SEARCH_INPUT_UI && friendSocialSearchAdapter != null)
+            {
+                friendSocialSearchAdapter.SetFocused(true);
+            }
+            else
+            {
+                friendSocialSearchInput.setFocusWithKb(true);
+            }
         }
 
         private void ensureFriendSocialSearchInput()
+        {
+            int inputXOffset = FRIEND_SOCIAL_SEARCH_INPUT_X_OFFSET;
+            if (USE_NEW_FRIEND_SEARCH_INPUT_UI)
+            {
+                ensureFriendSocialSearchInputComponent();
+            }
+            else
+            {
+                ensureFriendSocialSearchInputLegacy();
+            }
+        }
+
+        private void ensureFriendSocialSearchInputComponent()
+        {
+            if (friendSocialSearchInput == null)
+            {
+                friendSocialSearchInput = new TField();
+                friendSocialSearchAdapter = new TextFieldAdapter(friendSocialSearchInput);
+                friendSocialSearchAdapter.Configure(
+                    xScroll + FRIEND_SOCIAL_SEARCH_INPUT_X_OFFSET,
+                    83,
+                    System.Math.Max(42, wScroll - FRIEND_SOCIAL_SEARCH_INPUT_X_OFFSET - 51),
+                    18,
+                    UiInputType.Any,
+                    32,
+                    SOCIAL_V2_SEARCH_INPUT
+                );
+                friendSocialSearchAdapter.SetText(friendSocialSearchQuery);
+            }
+            else
+            {
+                if (friendSocialSearchAdapter == null || friendSocialSearchAdapter.Target != friendSocialSearchInput)
+                {
+                    friendSocialSearchAdapter = new TextFieldAdapter(friendSocialSearchInput);
+                }
+                friendSocialSearchAdapter.SetBounds(
+                    xScroll + FRIEND_SOCIAL_SEARCH_INPUT_X_OFFSET,
+                    83,
+                    System.Math.Max(42, wScroll - FRIEND_SOCIAL_SEARCH_INPUT_X_OFFSET - 51),
+                    18
+                );
+            }
+            if (!friendSocialSearchAdapter.IsFocused && friendSocialSearchAdapter.GetText() != friendSocialSearchQuery)
+            {
+                friendSocialSearchAdapter.SetText(friendSocialSearchQuery);
+            }
+        }
+
+        private void ensureFriendSocialSearchInputLegacy()
         {
             if (friendSocialSearchInput == null)
             {
@@ -8420,8 +8706,16 @@ else
                 return;
             }
             ensureFriendSocialSearchInput();
-            friendSocialSearchInput.update();
-            restoreFriendListWhenSearchIsEmpty(friendSocialSearchInput.getText());
+            if (USE_NEW_FRIEND_SEARCH_INPUT_UI && friendSocialSearchAdapter != null)
+            {
+                friendSocialSearchAdapter.Update();
+                restoreFriendListWhenSearchIsEmpty(friendSocialSearchAdapter.GetText());
+            }
+            else
+            {
+                friendSocialSearchInput.update();
+                restoreFriendListWhenSearchIsEmpty(friendSocialSearchInput.getText());
+            }
         }
 
         private bool restoreFriendListWhenSearchIsEmpty(string query)
@@ -8434,14 +8728,23 @@ else
             {
                 return true;
             }
-            bool keepInputFocus = friendSocialSearchInput != null && friendSocialSearchInput.isFocus;
+            bool keepInputFocus = (USE_NEW_FRIEND_SEARCH_INPUT_UI && friendSocialSearchAdapter != null)
+                ? friendSocialSearchAdapter.IsFocused
+                : (friendSocialSearchInput != null && friendSocialSearchInput.isFocus);
             friendSocialSearchQuery = string.Empty;
             FriendSocialState.gI().Search.Clear();
             setFriendSocialMode(FRIEND_SOCIAL_MODE_FRIENDS);
             friendSocialScrollOffsets[FRIEND_SOCIAL_MODE_SEARCH] = 0;
             if (keepInputFocus)
             {
-                friendSocialSearchInput.setFocusWithKb(true);
+                if (USE_NEW_FRIEND_SEARCH_INPUT_UI && friendSocialSearchAdapter != null)
+                {
+                    friendSocialSearchAdapter.SetFocused(true);
+                }
+                else
+                {
+                    friendSocialSearchInput.setFocusWithKb(true);
+                }
             }
             return true;
         }
@@ -8464,7 +8767,14 @@ else
             }
             friendSocialSearchQuery = normalized;
             ensureFriendSocialSearchInput();
-            friendSocialSearchInput.setText(normalized);
+            if (USE_NEW_FRIEND_SEARCH_INPUT_UI && friendSocialSearchAdapter != null)
+            {
+                friendSocialSearchAdapter.SetText(normalized);
+            }
+            else
+            {
+                friendSocialSearchInput.setText(normalized);
+            }
             if (friendSocialMode != FRIEND_SOCIAL_MODE_SEARCH)
             {
                 setFriendSocialMode(FRIEND_SOCIAL_MODE_SEARCH);
@@ -9712,6 +10022,36 @@ paintScrollArrow(g);
 
         private void paintPKHistory(mGraphics g)
         {
+            if (USE_NEW_PK_HISTORY_UI)
+            {
+                paintPKHistoryComponent(g);
+            }
+            else
+            {
+                paintPKHistoryLegacy(g);
+            }
+        }
+
+        private void paintPKHistoryComponent(mGraphics g)
+        {
+            string myCharName = (Char.myCharz() != null) ? Char.myCharz().cName : string.Empty;
+            PKHistoryView.Paint(
+                g,
+                xScroll,
+                yScroll,
+                wScroll,
+                hScroll,
+                cmy,
+                selected,
+                isPKHistoryLoading,
+                pkHistoryEntries,
+                imgPKHistoryWin,
+                imgPKHistoryLose,
+                myCharName);
+        }
+
+        private void paintPKHistoryLegacy(mGraphics g)
+        {
             loadPKHistoryImages();
             g.setClip(xScroll, yScroll, wScroll, hScroll);
             if (isPKHistoryLoading)
@@ -10919,6 +11259,17 @@ paintScrollArrow(g);
             pointerDownTime = (pointerDownFirstX = 0);
             pointerIsDowning = false;
             isShow = false;
+            if (type == 15 && USE_TOP_PANEL_CONTENT && topPanelContent != null)
+            {
+                topPanelContent.Unbind();
+                cancelPendingTopAction();
+            }
+            if (type == 16 && USE_ENEMY_PANEL_CONTENT && enemyPanelContent != null)
+            {
+                enemyPanelContent.Unbind();
+                cancelPendingEnemyAction();
+            }
+            leaveEnemyLifecycle();
             if ((Char.myCharz().cHP <= 0 || Char.myCharz().statusMe == 14 || Char.myCharz().statusMe == 5) && Char.myCharz().meDead)
             {
                 Command center = new Command(mResources.DIES[0], 11038, GameScr.gI());
@@ -10956,7 +11307,21 @@ paintScrollArrow(g);
             if (type == 15)
             {
                 Service.gI().sendThachDau(-1);
+                if (USE_TOP_PANEL_CONTENT && topPanelContent != null)
+                {
+                    topPanelContent.Unbind();
+                    cancelPendingTopAction();
+                }
             }
+            if (type == 16)
+            {
+                if (USE_ENEMY_PANEL_CONTENT && enemyPanelContent != null)
+                {
+                    enemyPanelContent.Unbind();
+                    cancelPendingEnemyAction();
+                }
+            }
+            leaveEnemyLifecycle();
             SoundMn.gI().buttonClose();
             GameScr.isPaint = true;
             TileMap.lastPlanetId = -1;
@@ -11131,6 +11496,14 @@ else
                 return;
             }
             moveCamera();
+            if (isTopContentActive())
+            {
+                topPanelContent.Update();
+            }
+            if (isEnemyContentActive())
+            {
+                enemyPanelContent.Update();
+            }
             if (isTabInven() && isnewInventory)
             {
                 if (eBanner == null)
@@ -11148,7 +11521,7 @@ else
                 waitToPerform--;
                 if (waitToPerform == 0)
                 {
-                    lastSelect[currentTabIndex] = selected;
+                    lastSelect[currentTabIndex] = isTopContentActive() ? topPanelContent.SelectedIndex : (isEnemyContentActive() ? enemyPanelContent.SelectedIndex : selected);
                     switch (type)
                     {
                         case 0:
@@ -11197,10 +11570,26 @@ else
                             doFireMapTrans();
                             break;
                         case 15:
-                            doFireTop();
+                            if (USE_TOP_PANEL_CONTENT)
+                            {
+                                executeTopAction(pendingTopAction);
+                                pendingTopAction = TopContentAction.None;
+                            }
+                            else
+                            {
+                                doFireTop();
+                            }
                             break;
                         case 16:
-                            doFireEnemy();
+                            if (USE_ENEMY_PANEL_CONTENT)
+                            {
+                                executeEnemyAction(pendingEnemyAction);
+                                pendingEnemyAction = EnemyContentAction.None;
+                            }
+                            else
+                            {
+                                doFireEnemy();
+                            }
                             break;
                         case 18:
                             doFireChangeFlag();
@@ -11632,6 +12021,230 @@ else
                 GameCanvas.menu.startAt(myVector, X, (selected + 1) * ITEM_HEIGHT - cmy + yScroll);
                 addThachDauDetail((TopInfo)vTop.elementAt(selected));
             }
+        }
+
+        private void ensureTopPanelContent()
+        {
+            if (topPanelContent == null)
+            {
+                topPanelContent = new TopPanelContent();
+            }
+        }
+
+        private bool isTopContentActive()
+        {
+            return type == TYPE_TOP
+                && USE_TOP_PANEL_CONTENT
+                && topPanelContent != null
+                && topPanelContent.IsActive;
+        }
+
+        private bool isTopContentDragging()
+        {
+            return isTopContentActive() && topPanelContent.IsDragging;
+        }
+
+        private void cancelPendingTopAction()
+        {
+            if (pendingTopAction.Type != TopContentActionType.None)
+            {
+                waitToPerform = 0;
+            }
+            pendingTopAction = TopContentAction.None;
+        }
+
+        private void unbindTopContentWhenLeavingType()
+        {
+            if (type != TYPE_TOP && topPanelContent != null && topPanelContent.IsActive)
+            {
+                topPanelContent.Unbind();
+                cancelPendingTopAction();
+            }
+        }
+
+        private void updateKeyTopContent()
+        {
+            if (topPanelContent == null || !topPanelContent.IsActive)
+            {
+                return;
+            }
+            if (_uiInputContext == null)
+            {
+                _uiInputContext = new UiInputContext();
+            }
+            TopContentAction action = topPanelContent.HandleInput(_uiInputContext);
+            if (action.Type == TopContentActionType.Fire)
+            {
+                if (action.DelayFrames == 10)
+                {
+                    SoundMn.gI().panelClick();
+                }
+                cancelPendingTopAction();
+                waitToPerform = action.DelayFrames;
+                pendingTopAction = action;
+            }
+        }
+        private void executeTopAction(TopContentAction action)
+        {
+            if (action.Type != TopContentActionType.Fire
+                || action.SelectedInfo == null
+                || topPanelContent == null
+                || !topPanelContent.IsActionCurrent(action))
+            {
+                return;
+            }
+            if (isThachDau)
+            {
+                Service.gI().sendTop(topName, (sbyte)action.SelectedIndex);
+                return;
+            }
+            MyVector myVector = new MyVector(string.Empty);
+            myVector.addElement(new Command(mResources.CHAR_ORDER[0], this, 9999, action.SelectedInfo));
+            GameCanvas.menu.startAt(myVector, X, action.MenuY);
+            addThachDauDetail(action.SelectedInfo);
+        }
+
+        private void ensureEnemyPanelContent()
+        {
+            if (enemyPanelContent == null)
+            {
+                enemyPanelContent = new EnemyPanelContent();
+            }
+        }
+
+        private bool isEnemyContentActive()
+        {
+            return type == TYPE_ENEMY
+                && USE_ENEMY_PANEL_CONTENT
+                && enemyPanelContent != null
+                && enemyPanelContent.IsActive;
+        }
+
+        private bool isEnemyContentDragging()
+        {
+            return isEnemyContentActive() && enemyPanelContent.IsDragging;
+        }
+
+        private void cancelPendingEnemyAction()
+        {
+            if (pendingEnemyAction.Type != EnemyContentActionType.None)
+            {
+                waitToPerform = 0;
+            }
+            pendingEnemyAction = EnemyContentAction.None;
+        }
+
+        private void leaveEnemyLifecycle()
+        {
+            if (enemyLifecycle != null && enemyLifecycle.OnLeavingType())
+            {
+                InfoDlg.hide();
+            }
+        }
+
+        private void unbindEnemyContentWhenLeavingType()
+        {
+            leaveEnemyLifecycle();
+            if (type != TYPE_ENEMY && enemyPanelContent != null && enemyPanelContent.IsActive)
+            {
+                enemyPanelContent.Unbind();
+                cancelPendingEnemyAction();
+            }
+        }
+
+        private void updateKeyEnemyContent()
+        {
+            if (enemyPanelContent == null || !enemyPanelContent.IsActive)
+            {
+                return;
+            }
+            if (_uiInputContext == null)
+            {
+                _uiInputContext = new UiInputContext();
+            }
+            EnemyContentAction action = enemyPanelContent.HandleInput(_uiInputContext);
+            if (action.Type == EnemyContentActionType.OpenActions)
+            {
+                if (action.DelayFrames == 10)
+                {
+                    SoundMn.gI().panelClick();
+                }
+                cancelPendingEnemyAction();
+                waitToPerform = action.DelayFrames;
+                pendingEnemyAction = action;
+            }
+        }
+
+        private bool isEnemyMenuContextValid(object p)
+        {
+            if (enemyLifecycle == null)
+            {
+                return false;
+            }
+            return enemyLifecycle.IsMenuContextValid(p, type == TYPE_ENEMY && isShow, vEnemy);
+        }
+
+        private void invalidateEnemyMenuContext()
+        {
+            if (enemyLifecycle != null)
+            {
+                enemyLifecycle.InvalidateMenuContext();
+            }
+        }
+
+        public EnemyListDisposition onEnemyListReceived()
+        {
+            if (enemyLifecycle == null)
+            {
+                enemyLifecycle = new EnemyPanelLifecycle();
+            }
+            bool hadActiveEnemyMenu = enemyLifecycle.ActiveMenuContext.IsValid;
+            bool shouldHideWaitDialog = enemyLifecycle.ConsumeWaitDialogOwnership();
+            EnemyListDisposition disposition = enemyLifecycle.OnListReceived(type == TYPE_ENEMY && isShow);
+            if (shouldHideWaitDialog)
+            {
+                InfoDlg.hide();
+            }
+            switch (disposition)
+            {
+                case EnemyListDisposition.RefreshCurrent:
+                    if (hadActiveEnemyMenu && GameCanvas.menu != null && GameCanvas.menu.showMenu)
+                    {
+                        GameCanvas.menu.doCloseMenu();
+                        cp = null;
+                    }
+                    cancelPendingEnemyAction();
+                    setTabEnemy();
+                    break;
+                case EnemyListDisposition.OpenRequested:
+                    setTypeEnemy();
+                    show();
+                    break;
+                case EnemyListDisposition.CacheOnly:
+                    break;
+            }
+            return disposition;
+        }
+
+        private void executeEnemyAction(EnemyContentAction action)
+        {
+            if (action.Type != EnemyContentActionType.OpenActions
+                || action.SelectedInfo == null
+                || enemyPanelContent == null
+                || !enemyPanelContent.IsActionCurrent(action))
+            {
+                return;
+            }
+            currInfoItem = action.SelectedIndex;
+            if (enemyLifecycle != null)
+            {
+                enemyLifecycle.OpenMenu(action.SelectedInfo);
+            }
+            MyVector myVector = new MyVector();
+            myVector.addElement(new Command(mResources.REVENGE, this, 10000, action.SelectedInfo));
+            myVector.addElement(new Command(mResources.DELETE, this, 10001, action.SelectedInfo));
+            GameCanvas.menu.startAt(myVector, X, action.MenuY);
+            addFriend(action.SelectedInfo);
         }
 
         private void doFireMapTrans()
@@ -12372,6 +12985,7 @@ else
         {
             type = TYPE_PK_HISTORY;
             setType(0);
+            loadPKHistoryImages();
             setTabPKHistory();
             cmx = (cmtoX = 0);
             reloadPKHistory();
@@ -12545,11 +13159,7 @@ else
             currentListLength = pkHistoryEntries.size();
             ITEM_HEIGHT = 34;
             selected = (GameCanvas.isTouch ? (-1) : 0);
-            cmyLim = currentListLength * ITEM_HEIGHT - hScroll;
-            if (cmyLim < 0)
-            {
-                cmyLim = 0;
-            }
+            cmyLim = UiListLayout.CalculateMaxScroll(currentListLength, ITEM_HEIGHT, hScroll);
             cmy = (cmtoY = 0);
         }
 
@@ -12763,6 +13373,10 @@ else
             {
                 MyVector myVector = new MyVector();
                 currInfoItem = selected;
+                if (enemyLifecycle != null)
+                {
+                    enemyLifecycle.OpenMenu((InfoItem)vEnemy.elementAt(currInfoItem));
+                }
                 myVector.addElement(new Command(mResources.REVENGE, this, 10000, (InfoItem)vEnemy.elementAt(currInfoItem)));
                 myVector.addElement(new Command(mResources.DELETE, this, 10001, (InfoItem)vEnemy.elementAt(currInfoItem)));
                 GameCanvas.menu.startAt(myVector, X, (selected + 1) * ITEM_HEIGHT - cmy + yScroll);
@@ -14125,13 +14739,24 @@ else
             }
             if (idAction == 10000)
             {
+                if (!isEnemyMenuContextValid(p))
+                {
+                    return;
+                }
+                invalidateEnemyMenuContext();
                 InfoItem infoItem4 = (InfoItem)p;
                 Service.gI().enemy(1, infoItem4.charInfo.charID);
                 GameCanvas.panel.hideNow();
             }
             if (idAction == 10001)
             {
+                if (!isEnemyMenuContextValid(p))
+                {
+                    return;
+                }
+                invalidateEnemyMenuContext();
                 InfoItem infoItem5 = (InfoItem)p;
+                enemyLifecycle.BeginWaitDialog();
                 Service.gI().enemy(2, infoItem5.charInfo.charID);
                 InfoDlg.showWait();
             }
@@ -15433,6 +16058,7 @@ else
                     InfoDlg.showWait();
                     break;
                 case 2:
+                    enemyLifecycle.BeginRequest();
                     Service.gI().enemy(0, -1);
                     InfoDlg.showWait();
                     break;

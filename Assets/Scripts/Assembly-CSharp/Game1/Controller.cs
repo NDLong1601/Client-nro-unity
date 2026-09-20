@@ -245,8 +245,8 @@ namespace Game1
 					goto case -66;
 				}
 				case -99:
-					InfoDlg.hide();
-					if (msg.reader().readByte() == 0)
+					sbyte enemyResponseType = msg.reader().readByte();
+					if (enemyResponseType == 0)
 					{
 						GameCanvas.panel.vEnemy.removeAllElements();
 						int num114 = msg.reader().readUnsignedByte();
@@ -266,8 +266,11 @@ namespace Game1
 							infoItem.isOnline = isOnline;
 							GameCanvas.panel.vEnemy.addElement(infoItem);
 						}
-						GameCanvas.panel.setTypeEnemy();
-						GameCanvas.panel.show();
+						GameCanvas.panel.onEnemyListReceived();
+					}
+					else
+					{
+						InfoDlg.hide();
 					}
 					break;
 				case -98:

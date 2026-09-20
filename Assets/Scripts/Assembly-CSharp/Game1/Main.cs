@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net.NetworkInformation;
 using System.Threading;
 using UnityEngine;
@@ -341,6 +341,17 @@ namespace Game1
 				clearFocusedSocialTextField();
 				return;
 			}
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			if (Event.current != null && Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.F8)
+			{
+				if (Management.tab == TabType.Tab1)
+				{
+					Game1.UI.Sandbox.UiComponentSandboxScr.Open();
+					Event.current.Use();
+					return;
+				}
+			}
+#endif
             if (Input.GetMouseButtonDown(0))
 			{
 				Vector3 mousePosition = Input.mousePosition;

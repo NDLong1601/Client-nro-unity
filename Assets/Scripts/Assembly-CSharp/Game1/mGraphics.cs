@@ -79,6 +79,50 @@ namespace Game1
 
 		private int clipTY;
 
+		public struct RawRenderState
+		{
+			public bool isClip;
+			public bool isTranslate;
+			public int translateX;
+			public int translateY;
+			public int clipTX;
+			public int clipTY;
+			public int clipX;
+			public int clipY;
+			public int clipW;
+			public int clipH;
+		}
+
+		public RawRenderState getRawState()
+		{
+			RawRenderState state;
+			state.isClip = isClip;
+			state.isTranslate = isTranslate;
+			state.translateX = translateX;
+			state.translateY = translateY;
+			state.clipTX = clipTX;
+			state.clipTY = clipTY;
+			state.clipX = clipX;
+			state.clipY = clipY;
+			state.clipW = clipW;
+			state.clipH = clipH;
+			return state;
+		}
+
+		public void restoreRawState(RawRenderState state)
+		{
+			isClip = state.isClip;
+			isTranslate = state.isTranslate;
+			translateX = state.translateX;
+			translateY = state.translateY;
+			clipTX = state.clipTX;
+			clipTY = state.clipTY;
+			clipX = state.clipX;
+			clipY = state.clipY;
+			clipW = state.clipW;
+			clipH = state.clipH;
+		}
+
 		private int currentBGColor;
 
 		private Vector2 pos = new Vector2(0f, 0f);
