@@ -2920,8 +2920,12 @@ namespace Game1
 					break;
 				}
 				case -25:
-					GameScr.info1.addInfo(msg.reader().readUTF(), 0);
+				{
+					string thongBao = msg.reader().readUTF();
+					GameScr.info1.addInfo(thongBao, 0);
+					Game1.UI.CustomMenu.CustomMenuScr.OnThongBao(thongBao);
 					break;
+				}
 				case -24:
 					if (GameCanvas.currentScreen is GameScr)
 					{
@@ -3424,6 +3428,7 @@ namespace Game1
 							}
 							GameScr.gI().createMenu(array18, npc4);
 							ChatPopup.addChatPopup(text8, 100000, npc4);
+							Game1.UI.CustomMenu.CustomMenuScr.OnNpcDialog(num166, text8);
 							if (num166 == 21 && text8.Contains("tối đa"))
 							{
 								ModFunc.GI().maxPhale = ModFunc.GI().currPhale;
@@ -3448,6 +3453,7 @@ namespace Game1
 					}
 					GameScr.gI().createMenu(array19, npc5);
 					ChatPopup.addChatPopup(chat2, 100000, npc5);
+					Game1.UI.CustomMenu.CustomMenuScr.OnNpcDialog(num166, chat2);
 					break;
 				}
 				case 33:
@@ -3564,6 +3570,7 @@ namespace Game1
 						Cout.println("Loi TASK_GET " + ex22.ToString());
 					}
 					Char.myCharz().taskMaint = new Task(taskId, index3, str2, str3, array11, array13, count, array12);
+					Game1.UI.CustomMenu.CustomMenuScr.SyncMainTask();
 					if (Char.myCharz().npcFocus != null)
 					{
 						Npc.clearEffTask();

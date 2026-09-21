@@ -46,6 +46,19 @@ namespace Game2.UI.Adapters
             _scroll.updatecm();
         }
 
+        public void ScrollToIndex(int index)
+        {
+            if (ItemCount <= 0) return;
+            if (index < 0) index = 0;
+            if (index >= ItemCount) index = ItemCount - 1;
+            int target = index * ItemSize - (Viewport.Height - ItemSize) / 2;
+            if (target < 0) target = 0;
+            if (target > _scroll.cmyLim) target = _scroll.cmyLim;
+            _scroll.cmy = target;
+            _scroll.cmtoY = target;
+            SelectedIndex = index;
+        }
+
         public bool UpdateKey(UiInputContext input, out int clickedIndex)
         {
             clickedIndex = -1;

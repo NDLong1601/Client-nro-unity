@@ -341,6 +341,15 @@ namespace Game1
 				clearFocusedSocialTextField();
 				return;
 			}
+			if (Event.current != null && Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.F7)
+			{
+				if (Management.tab == TabType.Tab1)
+				{
+					Game1.UI.CustomMenu.CustomMenuScr.Toggle();
+					Event.current.Use();
+					return;
+				}
+			}
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
 			if (Event.current != null && Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.F8)
 			{

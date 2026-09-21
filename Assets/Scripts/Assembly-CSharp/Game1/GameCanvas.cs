@@ -607,7 +607,11 @@ namespace Game1
 				}
 				if (currentScreen != null)
 				{
-					if (ChatPopup.serverChatPopUp != null)
+					if (Game1.UI.CustomMenu.CustomMenuScr.IsOpen)
+					{
+						Game1.UI.CustomMenu.CustomMenuScr.UpdateOverlay();
+					}
+					else if (ChatPopup.serverChatPopUp != null)
 					{
 						ChatPopup.serverChatPopUp.update();
 						ChatPopup.serverChatPopUp.updateKey();
@@ -684,7 +688,7 @@ namespace Game1
 					{
 						currentScreen.update();
 					}
-					if (!panel.isShow && ChatPopup.serverChatPopUp == null)
+					if (!panel.isShow && ChatPopup.serverChatPopUp == null && !Game1.UI.CustomMenu.CustomMenuScr.IsOpen)
 					{
 						currentScreen.updateKey();
 					}
@@ -2409,6 +2413,10 @@ namespace Game1
 					{
 						effect.paint(g);
 					}
+				}
+				if (Game1.UI.CustomMenu.CustomMenuScr.IsOpen)
+				{
+					Game1.UI.CustomMenu.CustomMenuScr.PaintOverlay(g);
 				}
 				if (Char.isLoadingMap || LoginScr.isContinueToLogin || ServerListScreen.waitToLogin || ServerListScreen.isWait)
 				{
