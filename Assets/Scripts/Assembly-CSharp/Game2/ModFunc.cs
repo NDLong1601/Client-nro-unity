@@ -101,6 +101,14 @@ namespace Game2
 
 		private int paramIntrinsic = -1;
 
+		private int intrinsicMenuIndex = 2;
+
+		private int intrinsicAutoStep = -1;
+
+		private long nextIntrinsicAutoAction;
+
+		public bool IsAutoIntrinsicRunning => paramIntrinsic != -1;
+
 		private readonly List<Skill> listSkillsAuto = new List<Skill>();
 
 		public List<ItemAuto> listItemAuto = new List<ItemAuto>();
@@ -1143,6 +1151,7 @@ namespace Game2
 			AutoItem.Update();
 			ShowBoss.UpdateNotifications();
 			long num = mSystem.currentTimeMillis();
+			UpdateAutoIntrinsic(num);
 			if (isPeanPet && num - lastPeanPet >= 3000)
 			{
 				Char @char = Char.myPetz();
@@ -3048,30 +3057,28 @@ namespace Game2
 
 		public void SetAutoIntrinsic(int param)
 		{
-			int result;
-			if (curSelectIntrinsic.Length <= 0)
+			SetAutoIntrinsic(param, vip: true);
+		}
+
+		public void SetAutoIntrinsic(int param, bool vip)
+		{
+			if (string.IsNullOrEmpty(curSelectIntrinsic))
 			{
 				GameScr.info1.addInfo("Chỉ số đã chọn không đúng! (1)", 0);
 			}
-			else if (int.TryParse(curSelectIntrinsic.Split("đến ")[1].Split("%")[0], out result) && param > 0 && param <= result)
+			else if (TryReadIntrinsicLimit(curSelectIntrinsic, out int result) && param > 0 && param <= result)
 			{
 				paramIntrinsic = param;
-				if (curSelectIntrinsic.Contains("+"))
+				intrinsicMenuIndex = vip ? 2 : 1;
+				curSelectIntrinsic = GetIntrinsicBaseName(curSelectIntrinsic);
+				if (string.IsNullOrEmpty(curSelectIntrinsic))
 				{
-					curSelectIntrinsic = curSelectIntrinsic.Split("+")[0].Trim();
+					StopAutoIntrinsic();
+					GameScr.info1.addInfo("Có lỗi xảy ra, vui lòng liên hệ ADMIN!", 0);
+					return;
 				}
-				else
-				{
-					if (!curSelectIntrinsic.Contains("dưới"))
-					{
-						paramIntrinsic = -1;
-						curSelectIntrinsic = "";
-						GameScr.info1.addInfo("Có lỗi xảy ra, vui lòng liên hệ ADMIN!", 0);
-						return;
-					}
-					curSelectIntrinsic = curSelectIntrinsic.Split("dưới ")[0].Trim();
-				}
-				new Thread(DoAutoIntrinsic).Start();
+				intrinsicAutoStep = 0;
+				nextIntrinsicAutoAction = 0L;
 			}
 			else
 			{
@@ -3079,33 +3086,94 @@ namespace Game2
 			}
 		}
 
-		private void DoAutoIntrinsic()
+		private void UpdateAutoIntrinsic(long now)
 		{
-			while (paramIntrinsic != -1)
+			if (!IsAutoIntrinsicRunning)
 			{
-				Service.gI().speacialSkill(0);
-				Thread.Sleep(500);
-				Service.gI().confirmMenu(5, 2);
-				Thread.Sleep(500);
-				Service.gI().confirmMenu(5, 0);
-				Thread.Sleep(500);
+				return;
 			}
+			switch (intrinsicAutoStep)
+			{
+			case 0:
+				if (now < nextIntrinsicAutoAction) return;
+				Service.gI().speacialSkill(0);
+				intrinsicAutoStep = 1;
+				nextIntrinsicAutoAction = now + 5000L;
+				break;
+			case 2:
+				Service.gI().confirmMenu(5, (sbyte)intrinsicMenuIndex);
+				intrinsicAutoStep = 3;
+				nextIntrinsicAutoAction = now + 5000L;
+				break;
+			case 4:
+				Service.gI().confirmMenu(5, 0);
+				intrinsicAutoStep = 5;
+				nextIntrinsicAutoAction = now + 5000L;
+				break;
+			default:
+				if (now >= nextIntrinsicAutoAction)
+				{
+					intrinsicAutoStep = 0;
+					nextIntrinsicAutoAction = now + 250L;
+				}
+				break;
+			}
+		}
+
+		public void NotifyIntrinsicAutoMenuReady()
+		{
+			if (!IsAutoIntrinsicRunning) return;
+			if (intrinsicAutoStep == 1) intrinsicAutoStep = 2;
+			else if (intrinsicAutoStep == 3) intrinsicAutoStep = 4;
+			else return;
+			nextIntrinsicAutoAction = mSystem.currentTimeMillis();
+		}
+
+		private static bool TryReadIntrinsicLimit(string info, out int limit)
+		{
+			limit = 0;
+			if (string.IsNullOrEmpty(info)) return false;
+			int marker = info.LastIndexOf("đến ", StringComparison.OrdinalIgnoreCase);
+			int start = marker >= 0 ? marker + 4 : -1;
+			if (start < 0)
+			{
+				marker = info.LastIndexOf("dưới ", StringComparison.OrdinalIgnoreCase);
+				start = marker >= 0 ? marker + 5 : -1;
+			}
+			if (start < 0) return false;
+			int end = start;
+			while (end < info.Length && char.IsDigit(info[end])) end++;
+			return end > start && int.TryParse(info.Substring(start, end - start), out limit);
+		}
+
+		private static string GetIntrinsicBaseName(string info)
+		{
+			if (string.IsNullOrEmpty(info)) return string.Empty;
+			int separator = info.IndexOf('+');
+			if (separator < 0) separator = info.IndexOf("dưới", StringComparison.OrdinalIgnoreCase);
+			return separator > 0 ? info.Substring(0, separator).Trim() : string.Empty;
+		}
+
+		private void StopAutoIntrinsic()
+		{
+			paramIntrinsic = -1;
+			intrinsicAutoStep = -1;
+			nextIntrinsicAutoAction = 0L;
+			curSelectIntrinsic = string.Empty;
+			GameCanvas.menu?.doCloseMenu();
 		}
 
 		public void CheckAutoIntrinsic(string info)
 		{
+			if (!IsAutoIntrinsicRunning || string.IsNullOrEmpty(info)) return;
+			bool reachedTarget = false;
 			if (info.Contains("+"))
 			{
 				string[] array = info.Split("+");
 				string text = array[0].Trim();
 				if (int.TryParse(array[1].Split("%")[0], out var result) && curSelectIntrinsic == text && result >= paramIntrinsic)
 				{
-					GameScr.info1.addInfo("Mở nội tại " + curSelectIntrinsic + " " + paramIntrinsic + "% thành công!", 0);
-					paramIntrinsic = -1;
-					curSelectIntrinsic = "";
-					GameCanvas.menu.menuSelectedItem = GameCanvas.menu.menuItems.size() - 1;
-					GameCanvas.menu.performSelect();
-					GameCanvas.menu.doCloseMenu();
+					reachedTarget = true;
 				}
 			}
 			else if (info.Contains("dưới"))
@@ -3114,20 +3182,22 @@ namespace Game2
 				string text2 = array2[0].Trim();
 				if (int.TryParse(array2[1].Split("%")[0], out var result2) && curSelectIntrinsic == text2 && result2 >= paramIntrinsic)
 				{
-					GameScr.info1.addInfo("Mở nội tại " + curSelectIntrinsic + " " + paramIntrinsic + "% thành công!", 0);
-					paramIntrinsic = -1;
-					curSelectIntrinsic = "";
-					GameCanvas.menu.menuSelectedItem = GameCanvas.menu.menuItems.size() - 1;
-					GameCanvas.menu.performSelect();
-					GameCanvas.menu.doCloseMenu();
+					reachedTarget = true;
 				}
 			}
 			else
 			{
-				paramIntrinsic = -1;
-				curSelectIntrinsic = "";
-				GameCanvas.menu.doCloseMenu();
+				StopAutoIntrinsic();
+				return;
 			}
+			if (reachedTarget)
+			{
+				GameScr.info1.addInfo("Mở nội tại " + curSelectIntrinsic + " " + paramIntrinsic + "% thành công!", 0);
+				StopAutoIntrinsic();
+				return;
+			}
+			intrinsicAutoStep = 0;
+			nextIntrinsicAutoAction = mSystem.currentTimeMillis() + 250L;
 		}
 	}
 }

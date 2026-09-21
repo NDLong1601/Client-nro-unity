@@ -24,6 +24,26 @@ namespace Game2.UI.CustomMenu
         private int _selectedSubTab = 0;  // 0: Nhiệm vụ chính, 1: Nhiệm vụ khác
         private int _selectedTaskPosition = 0;
         private int _selectedOtherCategoryIndex = 0; // 0: Bò Mộng, 1: Kanao, 2: Ngư Dân, 3: Bang Hội
+        private int _selectedSkillRow = -1;
+        private bool _showSkillKeyPicker;
+        private int _skillFocusArea = SkillFocusList;
+        private int _selectedPotentialAction = -1;
+        private int _selectedIntrinsicAction = -1;
+        private int _intrinsicActionCount;
+        private string _intrinsicDialogText = string.Empty;
+        private readonly string[] _intrinsicActionLabels = new string[4];
+        private readonly int[] _intrinsicActionServerIndices = new int[4];
+        private bool _waitingIntrinsicMenu;
+        private bool _waitingIntrinsicList;
+        private bool _showIntrinsicList;
+        private bool _showIntrinsicConfirmation;
+        private bool _expectingIntrinsicConfirmation;
+        private int _selectedIntrinsicListIndex = -1;
+        private int _selectedIntrinsicSideAction;
+        private bool _showIntrinsicInput;
+        private int _intrinsicInputFocus;
+        private TField _intrinsicInputField;
+        private int _selectedSkillKeyIndex;
         private int _keyboardFocus = KeyboardFocusContent;
 
         // Scroll adapters
@@ -44,6 +64,16 @@ namespace Game2.UI.CustomMenu
         private UiRect _rightBodyRect;
         private UiRect _closeBtnRect;
         private readonly UiRect[] _otherQuestCardRects = new UiRect[4];
+        private UiRect _skillListHeaderRect;
+        private UiRect _skillDetailHeaderRect;
+        private UiRect _assignSkillButtonRect;
+        private readonly UiRect[] _potentialButtonRects = new UiRect[4];
+        private readonly UiRect[] _skillKeyButtonRects = new UiRect[10];
+        private readonly UiRect[] _intrinsicSideButtonRects = new UiRect[2];
+        private UiRect _intrinsicInputDialogRect;
+        private UiRect _intrinsicInputCloseRect;
+        private UiRect _intrinsicNormalButtonRect;
+        private UiRect _intrinsicVipButtonRect;
 
         private const int MainTabCount = 5;
         private const int MaxFrameWidth = 460;
@@ -52,13 +82,44 @@ namespace Game2.UI.CustomMenu
         private const int FooterHeight = 27;
         private const int MainTaskRowHeight = 33;
         private const int OtherTaskRowHeight = 34;
+        private const int SkillRowHeight = 35;
+        private const int PotentialStatRowCount = 5;
+        private const int IntrinsicRowIndex = 5;
+        private const int SkillTemplateStartRow = 6;
+        private const int IntrinsicNpcId = 5;
+        private const int MaxIntrinsicActionCount = 4;
+        private const int IntrinsicListRowHeight = 35;
+        private const int SkillKeyButtonCount = 10;
         private const int LastKnownMainTaskId = 29;
         private const int KeyboardFocusMainTabs = 0;
         private const int KeyboardFocusContent = 1;
+        private const int SkillFocusList = 0;
+        private const int SkillFocusDetail = 1;
+        private const int SkillFocusKeys = 2;
+        private const int SkillFocusIntrinsicSide = 3;
 
         private static Image[] _mainTabIcons;
         private static Image[] _otherTaskIcons;
         private static Image[] _statusIcons;
+
+        private static readonly int[] PotentialIcons = new int[] { 567, 569, 568, 721, 719 };
+        private static readonly string[] PotentialNames = new string[]
+        {
+            "HP gốc",
+            "KI gốc",
+            "Sức đánh gốc",
+            "Giáp gốc",
+            "Chí mạng gốc"
+        };
+
+        private static readonly string[] DefaultIntrinsicActionLabels = new string[]
+        {
+            "Mở nội tại",
+            "Mở VIP",
+            "Danh sách nội tại"
+        };
+
+        private static readonly int[] DefaultIntrinsicActionServerIndices = new int[] { 1, 2, 0 };
 
         private static readonly string[] MainTabNames = new string[]
         {
@@ -386,6 +447,18 @@ namespace Game2.UI.CustomMenu
                 MoveVerticalSelection(1);
                 return true;
             }
+            if (_selectedMainTab == 2 && GameCanvas.keyPressed[Main.isPC ? 25 : 5])
+            {
+                GameCanvas.keyPressed[25] = false;
+                GameCanvas.keyPressed[15] = false;
+                GameCanvas.keyPressed[5] = false;
+                GameCanvas.keyHold[25] = false;
+                GameCanvas.keyHold[15] = false;
+                GameCanvas.keyHold[5] = false;
+                if (_keyboardFocus == KeyboardFocusMainTabs) MoveHorizontalFocus(1);
+                else HandleSkillConfirm();
+                return true;
+            }
             return false;
         }
 
@@ -408,7 +481,73 @@ namespace Game2.UI.CustomMenu
                     _selectedSubTab = 0;
                     RefreshKeyboardPage();
                 }
+                else if (_selectedMainTab == 2 && _selectedSkillRow < 0 && GetSkillRowCount() > 0)
+                {
+                    _selectedSkillRow = 0;
+                    _skillFocusArea = SkillFocusList;
+                    _selectedPotentialAction = GetFirstVisiblePotentialAction();
+                    RefreshKeyboardPage();
+                }
                 SoundMn.gI().panelClick();
+                return;
+            }
+
+            if (_selectedMainTab == 2)
+            {
+                if (direction < 0)
+                {
+                    if (_skillFocusArea == SkillFocusKeys)
+                    {
+                        _showSkillKeyPicker = false;
+                        _skillFocusArea = SkillFocusDetail;
+                    }
+                    else if (_skillFocusArea == SkillFocusIntrinsicSide)
+                    {
+                        _skillFocusArea = SkillFocusDetail;
+                    }
+                    else if (_skillFocusArea == SkillFocusDetail)
+                    {
+                        _skillFocusArea = SkillFocusList;
+                    }
+                    else
+                    {
+                        _keyboardFocus = KeyboardFocusMainTabs;
+                    }
+                    SoundMn.gI().panelClick();
+                }
+                else if (_skillFocusArea == SkillFocusList)
+                {
+                    if (_selectedSkillRow >= 0 && _selectedSkillRow < PotentialStatRowCount)
+                    {
+                        _selectedPotentialAction = GetFirstVisiblePotentialAction();
+                        if (_selectedPotentialAction < 0) return;
+                        _skillFocusArea = SkillFocusDetail;
+                        SoundMn.gI().panelClick();
+                    }
+                    else if (_selectedSkillRow == IntrinsicRowIndex)
+                    {
+                        EnsureDefaultIntrinsicActions();
+                        if (_intrinsicActionCount <= 0) return;
+                        if (_selectedIntrinsicAction < 0) _selectedIntrinsicAction = 0;
+                        _skillFocusArea = SkillFocusDetail;
+                        SoundMn.gI().panelClick();
+                    }
+                    else if (_selectedSkillRow >= SkillTemplateStartRow && GetSelectedSkill() != null)
+                    {
+                        _skillFocusArea = SkillFocusDetail;
+                        SoundMn.gI().panelClick();
+                    }
+                }
+                else if (_skillFocusArea == SkillFocusDetail && (_showIntrinsicList || _showIntrinsicConfirmation))
+                {
+                    _selectedIntrinsicSideAction = _showIntrinsicList && _selectedIntrinsicListIndex >= 0 ? 1 : 0;
+                    _skillFocusArea = SkillFocusIntrinsicSide;
+                    SoundMn.gI().panelClick();
+                }
+                else if (_skillFocusArea == SkillFocusDetail && _selectedSkillRow >= SkillTemplateStartRow)
+                {
+                    OpenSkillKeyPicker();
+                }
                 return;
             }
 
@@ -452,12 +591,124 @@ namespace Game2.UI.CustomMenu
             {
                 _selectedMainTab = (_selectedMainTab + direction + MainTabCount) % MainTabCount;
                 if (_selectedMainTab == 0) _selectedSubTab = 0;
+                _showSkillKeyPicker = false;
+                _skillFocusArea = SkillFocusList;
+                _selectedPotentialAction = -1;
+                _selectedIntrinsicAction = -1;
                 RefreshKeyboardPage();
                 SoundMn.gI().panelClick();
                 return;
             }
 
+            if (_selectedMainTab == 2)
+            {
+                if (_showIntrinsicList && _skillFocusArea == SkillFocusDetail)
+                    MoveIntrinsicListSelection(direction);
+                else if (_showIntrinsicList && _skillFocusArea == SkillFocusIntrinsicSide)
+                {
+                    if (_selectedIntrinsicListIndex < 0) _selectedIntrinsicSideAction = 0;
+                    else _selectedIntrinsicSideAction = _selectedIntrinsicSideAction == 0 ? 1 : 0;
+                    SoundMn.gI().panelClick();
+                }
+                else if (_skillFocusArea == SkillFocusDetail && _selectedSkillRow < PotentialStatRowCount)
+                    MovePotentialAction(direction);
+                else if (_skillFocusArea == SkillFocusDetail && _selectedSkillRow == IntrinsicRowIndex)
+                    MoveIntrinsicAction(direction);
+                else if (_skillFocusArea == SkillFocusKeys)
+                {
+                    _selectedSkillKeyIndex = (_selectedSkillKeyIndex + direction + SkillKeyButtonCount) % SkillKeyButtonCount;
+                    SoundMn.gI().panelClick();
+                }
+                else if (_skillFocusArea == SkillFocusList)
+                    MoveRowSelection(direction);
+                return;
+            }
+
             MoveRowSelection(direction);
+        }
+
+        private void HandleSkillConfirm()
+        {
+            if (_skillFocusArea == SkillFocusList)
+            {
+                MoveHorizontalFocus(1);
+                return;
+            }
+            if (_skillFocusArea == SkillFocusKeys)
+            {
+                AssignSelectedSkillToKey(_selectedSkillKeyIndex);
+                return;
+            }
+            if (_showIntrinsicList && _skillFocusArea == SkillFocusIntrinsicSide)
+            {
+                if (_selectedIntrinsicSideAction == 0) ExitIntrinsicListView();
+                else OpenIntrinsicInput();
+                return;
+            }
+            if (_showIntrinsicConfirmation && _skillFocusArea == SkillFocusIntrinsicSide)
+            {
+                ReturnToIntrinsicMain();
+                return;
+            }
+            if (_skillFocusArea != SkillFocusDetail) return;
+            if (_showIntrinsicList)
+            {
+                if (_selectedIntrinsicListIndex >= 0)
+                {
+                    _selectedIntrinsicSideAction = 1;
+                    _skillFocusArea = SkillFocusIntrinsicSide;
+                    SoundMn.gI().panelClick();
+                }
+                return;
+            }
+            if (_selectedSkillRow < PotentialStatRowCount)
+            {
+                if (!IsPotentialActionVisible(_selectedPotentialAction)) return;
+                if (_selectedPotentialAction == 3) OpenAutoPotentialInput();
+                else IncreaseSelectedPotential(GetPotentialBatch(_selectedPotentialAction));
+                return;
+            }
+            if (_selectedSkillRow == IntrinsicRowIndex)
+            {
+                PerformIntrinsicAction(_selectedIntrinsicAction);
+                return;
+            }
+            if (_selectedSkillRow >= SkillTemplateStartRow) OpenSkillKeyPicker();
+        }
+
+        private void MovePotentialAction(int direction)
+        {
+            int start = _selectedPotentialAction;
+            for (int step = 1; step <= _potentialButtonRects.Length; step++)
+            {
+                int candidate = (start + direction * step + _potentialButtonRects.Length * 2) % _potentialButtonRects.Length;
+                if (!IsPotentialActionVisible(candidate)) continue;
+                _selectedPotentialAction = candidate;
+                SoundMn.gI().panelClick();
+                return;
+            }
+        }
+
+        private void MoveIntrinsicAction(int direction)
+        {
+            EnsureDefaultIntrinsicActions();
+            if (_intrinsicActionCount <= 0) return;
+            if (_selectedIntrinsicAction < 0) _selectedIntrinsicAction = 0;
+            else _selectedIntrinsicAction = (_selectedIntrinsicAction + direction + _intrinsicActionCount) % _intrinsicActionCount;
+            SoundMn.gI().panelClick();
+        }
+
+        private void MoveIntrinsicListSelection(int direction)
+        {
+            int count = GetIntrinsicListCount();
+            if (count <= 0) return;
+            if (_selectedIntrinsicListIndex < 0)
+                _selectedIntrinsicListIndex = direction > 0 ? 0 : count - 1;
+            else
+                _selectedIntrinsicListIndex = System.Math.Max(0,
+                    System.Math.Min(count - 1, _selectedIntrinsicListIndex + direction));
+            _rightScrollAdapter?.ScrollToIndex(_selectedIntrinsicListIndex);
+            SoundMn.gI().panelClick();
         }
 
         private void RefreshKeyboardPage()
@@ -467,10 +718,30 @@ namespace Game2.UI.CustomMenu
             ConfigureScrollAdapters();
             if (_selectedMainTab == 0 && _selectedSubTab == 0)
                 _leftScrollAdapter?.ScrollToIndex(_selectedTaskPosition);
+            else if (_selectedMainTab == 2 && _selectedSkillRow >= 0)
+                _leftScrollAdapter?.ScrollToIndex(_selectedSkillRow);
         }
 
         private void MoveRowSelection(int direction)
         {
+            if (_selectedMainTab == 2)
+            {
+                int rowCount = GetSkillRowCount();
+                if (rowCount <= 0) return;
+                if (_selectedSkillRow < 0)
+                    _selectedSkillRow = direction > 0 ? 0 : rowCount - 1;
+                else
+                    _selectedSkillRow = (_selectedSkillRow + direction + rowCount) % rowCount;
+                _showSkillKeyPicker = false;
+                ExitIntrinsicListView(false);
+                _skillFocusArea = SkillFocusList;
+                _selectedPotentialAction = GetFirstVisiblePotentialAction();
+                RequestSelectedIntrinsicInfo();
+                _leftScrollAdapter?.ScrollToIndex(_selectedSkillRow);
+                SoundMn.gI().panelClick();
+                return;
+            }
+
             if (_selectedMainTab != 0) return;
 
             if (_selectedSubTab == 0)
@@ -524,6 +795,13 @@ namespace Game2.UI.CustomMenu
 
         public static void OnNpcDialog(int npcTempId, string text)
         {
+            if (npcTempId == IntrinsicNpcId && ModFunc.GI().IsAutoIntrinsicRunning)
+            {
+                ModFunc.GI().NotifyIntrinsicAutoMenuReady();
+                DismissIntrinsicNpcOverlay();
+                return;
+            }
+            if (npcTempId == IntrinsicNpcId && _isOpen && _instance != null && _instance.CaptureIntrinsicDialog(text)) return;
             if (string.IsNullOrEmpty(text)) return;
 
             // 1. Ngư Dân (Fishing)
@@ -825,6 +1103,29 @@ namespace Game2.UI.CustomMenu
             _inputContext = new UiInputContext();
             _selectedMainTab = 0;
             _selectedSubTab = 0;
+            _selectedSkillRow = -1;
+            _showSkillKeyPicker = false;
+            _skillFocusArea = SkillFocusList;
+            _selectedPotentialAction = -1;
+            _selectedIntrinsicAction = -1;
+            _intrinsicActionCount = 0;
+            _intrinsicDialogText = string.Empty;
+            for (int i = 0; i < _intrinsicActionLabels.Length; i++)
+            {
+                _intrinsicActionLabels[i] = null;
+                _intrinsicActionServerIndices[i] = -1;
+            }
+            _waitingIntrinsicMenu = false;
+            _waitingIntrinsicList = false;
+            _showIntrinsicList = false;
+            _showIntrinsicConfirmation = false;
+            _expectingIntrinsicConfirmation = false;
+            _selectedIntrinsicListIndex = -1;
+            _selectedIntrinsicSideAction = 0;
+            _showIntrinsicInput = false;
+            _intrinsicInputFocus = 0;
+            _intrinsicInputField = null;
+            _selectedSkillKeyIndex = 0;
             _keyboardFocus = KeyboardFocusContent;
             EnsureAssets();
 
@@ -855,11 +1156,14 @@ namespace Game2.UI.CustomMenu
             int subTabW = (columnWidth - 4) / 2;
             _subTab0Rect = new UiRect(leftX, frameY + 4, subTabW, 22);
             _subTab1Rect = new UiRect(_subTab0Rect.X + subTabW + 4, frameY + 4, subTabW, 22);
+            _skillListHeaderRect = new UiRect(leftX, frameY + 4, columnWidth, 22);
             _leftColRect = new UiRect(leftX, frameY + 31, columnWidth, contentH - 34);
 
             int rightX = leftX + columnWidth + 4;
             _rightColRect = new UiRect(rightX, frameY + 4, columnWidth, contentH - 8);
+            _skillDetailHeaderRect = new UiRect(rightX, frameY + 4, columnWidth, 22);
             _rightBodyRect = new UiRect(_rightColRect.X + 2, _rightColRect.Y + 26, _rightColRect.Width - 4, _rightColRect.Height - 28);
+            ConfigureSkillActionRects();
 
             // Auto-select active main task
             Task currentTask = (Char.myCharz() != null) ? Char.myCharz().taskMaint : null;
@@ -871,6 +1175,16 @@ namespace Game2.UI.CustomMenu
             SelectFirstAvailableOtherQuest();
             ConfigureScrollAdapters();
             _leftScrollAdapter?.ScrollToIndex(_selectedTaskPosition);
+        }
+
+        private static void DismissIntrinsicNpcOverlay()
+        {
+            if (Char.chatPopup != null)
+            {
+                Effect2.vEffect2.removeElement(Char.chatPopup);
+                Char.chatPopup = null;
+            }
+            GameCanvas.menu?.doCloseMenu();
         }
 
         private static void EnsureAssets()
@@ -1009,6 +1323,21 @@ namespace Game2.UI.CustomMenu
             if (_leftScrollAdapter == null) _leftScrollAdapter = new ScrollViewAdapter();
             if (_rightScrollAdapter == null) _rightScrollAdapter = new ScrollViewAdapter();
 
+            if (_selectedMainTab == 2)
+            {
+                _leftScrollAdapter.Configure(_leftColRect, GetSkillRowCount(), SkillRowHeight);
+                _rightScrollAdapter.Configure(_rightBodyRect, _showIntrinsicList ? GetIntrinsicListCount() : 0,
+                    _showIntrinsicList ? IntrinsicListRowHeight : 10);
+                return;
+            }
+
+            if (_selectedMainTab != 0)
+            {
+                _leftScrollAdapter.Configure(UiRect.Empty, 0, 1);
+                _rightScrollAdapter.Configure(UiRect.Empty, 0, 1);
+                return;
+            }
+
             if (_selectedSubTab == 0)
             {
                 int rowCount = GetMainTaskRowCount();
@@ -1028,6 +1357,15 @@ namespace Game2.UI.CustomMenu
         private int GetMainTaskRowCount()
         {
             return BuildMainTaskSequence().Length;
+        }
+
+        private static int GetSkillRowCount()
+        {
+            Char me = Char.myCharz();
+            int templateCount = me != null && me.nClass != null && me.nClass.skillTemplates != null
+                ? me.nClass.skillTemplates.Length
+                : 0;
+            return SkillTemplateStartRow + templateCount;
         }
 
         private UiRect GetLeftListViewport()
@@ -1143,6 +1481,11 @@ namespace Game2.UI.CustomMenu
         public override void update()
         {
             base.update();
+            if (_waitingIntrinsicList && HasIntrinsicListData()) EnterIntrinsicListView();
+            if (_showIntrinsicList && GameCanvas.panel != null && GameCanvas.panel.isShow) GameCanvas.panel.hide();
+            if (_showIntrinsicList && _rightScrollAdapter != null
+                && _rightScrollAdapter.ItemCount != GetIntrinsicListCount()) ConfigureScrollAdapters();
+            if (_showIntrinsicInput) _intrinsicInputField?.update();
             _leftScrollAdapter?.Update();
             _rightScrollAdapter?.Update();
         }
@@ -1151,11 +1494,27 @@ namespace Game2.UI.CustomMenu
         {
             if (_inputContext == null) return;
 
+            if (_showIntrinsicInput)
+            {
+                HandleIntrinsicInput();
+                return;
+            }
+
             // 1. ESC or Back key
             if (GameCanvas.keyAsciiPress == 27 || GameCanvas.keyPressed[12] || GameCanvas.keyPressed[13])
             {
                 GameCanvas.keyAsciiPress = 0;
                 GameCanvas.clearKeyPressed();
+                if (_showIntrinsicList)
+                {
+                    ExitIntrinsicListView();
+                    return;
+                }
+                if (_showIntrinsicConfirmation)
+                {
+                    ReturnToIntrinsicMain();
+                    return;
+                }
                 Close();
                 return;
             }
@@ -1188,12 +1547,20 @@ namespace Game2.UI.CustomMenu
                 {
                     _selectedMainTab = clickedTab;
                     if (_selectedMainTab == 0) _selectedSubTab = 0;
+                    _showSkillKeyPicker = false;
+                    ExitIntrinsicListView(false);
+                    _skillFocusArea = SkillFocusList;
+                    _selectedPotentialAction = _selectedMainTab == 2 ? GetFirstVisiblePotentialAction() : -1;
+                    if (_selectedMainTab == 2) RequestSelectedIntrinsicInfo();
                     _keyboardFocus = KeyboardFocusMainTabs;
                     GameCanvas.isPointerJustRelease = false;
                     _leftScrollAdapter?.Reset();
                     _rightScrollAdapter?.Reset();
                     ConfigureScrollAdapters();
-                    _leftScrollAdapter?.ScrollToIndex(_selectedTaskPosition);
+                    if (_selectedMainTab == 0)
+                        _leftScrollAdapter?.ScrollToIndex(_selectedTaskPosition);
+                    else if (_selectedMainTab == 2 && _selectedSkillRow >= 0)
+                        _leftScrollAdapter?.ScrollToIndex(_selectedSkillRow);
                     return;
                 }
             }
@@ -1261,6 +1628,10 @@ namespace Game2.UI.CustomMenu
                     return;
                 }
             }
+            else if (_selectedMainTab == 2 && HandleSkillPointerInput())
+            {
+                return;
+            }
 
             base.updateKey();
         }
@@ -1293,10 +1664,15 @@ namespace Game2.UI.CustomMenu
             {
                 PaintTaskTabContent(g);
             }
+            else if (_selectedMainTab == 2)
+            {
+                PaintSkillTabContent(g);
+            }
             else
             {
                 PaintEmptyTabContent(g);
             }
+            if (_showIntrinsicInput) PaintIntrinsicInput(g);
         }
 
         private void PaintVerticalTabBar(mGraphics g)
@@ -1381,6 +1757,1046 @@ namespace Game2.UI.CustomMenu
             string tabName = MainTabNames[_selectedMainTab];
             mFont.tahoma_7b_dark.drawString(g, tabName, midX, midY - 14, mFont.CENTER);
             mFont.tahoma_7_grey.drawString(g, "Chức năng đang được phát triển...", midX, midY + 4, mFont.CENTER);
+        }
+
+        private void ConfigureSkillActionRects()
+        {
+            int margin = 7;
+            int gap = 6;
+            int buttonHeight = 29;
+            int buttonWidth = (_rightBodyRect.Width - margin * 2 - gap) / 2;
+            int secondRowY = _rightBodyRect.Y + _rightBodyRect.Height - margin - buttonHeight;
+            int firstRowY = secondRowY - gap - buttonHeight;
+            int leftX = _rightBodyRect.X + margin;
+            int rightX = leftX + buttonWidth + gap;
+
+            _potentialButtonRects[0] = new UiRect(leftX, firstRowY, buttonWidth, buttonHeight);
+            _potentialButtonRects[1] = new UiRect(rightX, firstRowY, buttonWidth, buttonHeight);
+            _potentialButtonRects[2] = new UiRect(leftX, secondRowY, buttonWidth, buttonHeight);
+            _potentialButtonRects[3] = new UiRect(rightX, secondRowY, buttonWidth, buttonHeight);
+            _assignSkillButtonRect = new UiRect(leftX, secondRowY, _rightBodyRect.Width - margin * 2, buttonHeight);
+
+            int keyGap = 2;
+            int keyWidth = 70;
+            int keyHeight = System.Math.Max(22, (_frameRect.Height - 4 - keyGap * (SkillKeyButtonCount - 1)) / SkillKeyButtonCount);
+            int keyX = _frameRect.X + _frameRect.Width + 4;
+            if (keyX + keyWidth > GameCanvas.w - 2) keyX = System.Math.Max(2, GameCanvas.w - keyWidth - 2);
+            int keyY = _frameRect.Y + 2;
+            for (int i = 0; i < SkillKeyButtonCount; i++)
+                _skillKeyButtonRects[i] = new UiRect(keyX, keyY + i * (keyHeight + keyGap), keyWidth, keyHeight);
+
+            int sideHeight = 28;
+            _intrinsicSideButtonRects[0] = new UiRect(keyX, keyY, keyWidth, sideHeight);
+            _intrinsicSideButtonRects[1] = new UiRect(keyX, keyY + sideHeight + 4, keyWidth, sideHeight);
+
+            int dialogWidth = System.Math.Min(290, GameCanvas.w - 20);
+            int dialogHeight = 112;
+            int dialogX = (GameCanvas.w - dialogWidth) / 2;
+            int dialogY = (GameCanvas.h - dialogHeight) / 2;
+            _intrinsicInputDialogRect = new UiRect(dialogX, dialogY, dialogWidth, dialogHeight);
+            _intrinsicInputCloseRect = new UiRect(dialogX + dialogWidth - 19, dialogY - 4, 20, 20);
+            int inputWidth = dialogWidth - 54;
+            _intrinsicNormalButtonRect = new UiRect(dialogX + 25, dialogY + dialogHeight - 34, 78, 27);
+            _intrinsicVipButtonRect = new UiRect(dialogX + dialogWidth - 103, dialogY + dialogHeight - 34, 78, 27);
+            if (_intrinsicInputField != null)
+            {
+                _intrinsicInputField.x = dialogX + 27;
+                _intrinsicInputField.y = dialogY + 29;
+                _intrinsicInputField.width = inputWidth;
+                _intrinsicInputField.height = 27;
+            }
+        }
+
+        private bool HandleSkillPointerInput()
+        {
+            if ((_showIntrinsicList || _showIntrinsicConfirmation) && GameCanvas.isPointerJustRelease)
+            {
+                for (int i = 0; i < _intrinsicSideButtonRects.Length; i++)
+                {
+                    if (i == 1 && (!_showIntrinsicList || _selectedIntrinsicListIndex < 0)) continue;
+                    UiRect sideRect = _intrinsicSideButtonRects[i];
+                    if (!GameCanvas.isPointer(sideRect.X, sideRect.Y, sideRect.Width, sideRect.Height)) continue;
+                    GameCanvas.isPointerJustRelease = false;
+                    _selectedIntrinsicSideAction = i;
+                    _skillFocusArea = SkillFocusIntrinsicSide;
+                    if (i == 0 && _showIntrinsicConfirmation) ReturnToIntrinsicMain();
+                    else if (i == 0) ExitIntrinsicListView();
+                    else OpenIntrinsicInput();
+                    return true;
+                }
+            }
+
+            if (_showIntrinsicList && _rightScrollAdapter != null
+                && _rightScrollAdapter.UpdateKey(_inputContext, out int intrinsicIndex))
+            {
+                if (intrinsicIndex >= 0 && intrinsicIndex < GetIntrinsicListCount())
+                {
+                    _selectedIntrinsicListIndex = intrinsicIndex;
+                    _skillFocusArea = SkillFocusDetail;
+                    _selectedIntrinsicSideAction = 1;
+                    SoundMn.gI().panelClick();
+                }
+                return true;
+            }
+
+            if (_showSkillKeyPicker && GameCanvas.isPointerJustRelease)
+            {
+                for (int i = 0; i < _skillKeyButtonRects.Length; i++)
+                {
+                    UiRect rect = _skillKeyButtonRects[i];
+                    if (!GameCanvas.isPointer(rect.X, rect.Y, rect.Width, rect.Height)) continue;
+                    GameCanvas.isPointerJustRelease = false;
+                    _selectedSkillKeyIndex = i;
+                    AssignSelectedSkillToKey(i);
+                    return true;
+                }
+            }
+
+            if (_leftScrollAdapter != null && _leftScrollAdapter.UpdateKey(_inputContext, out int clickedIndex))
+            {
+                if (clickedIndex >= 0 && clickedIndex < GetSkillRowCount())
+                {
+                    _selectedSkillRow = clickedIndex;
+                    _showSkillKeyPicker = false;
+                    ExitIntrinsicListView(false);
+                    _skillFocusArea = SkillFocusList;
+                    _selectedPotentialAction = GetFirstVisiblePotentialAction();
+                    RequestSelectedIntrinsicInfo();
+                    _keyboardFocus = KeyboardFocusContent;
+                    SoundMn.gI().panelClick();
+                }
+                return true;
+            }
+
+            if (GameCanvas.isPointerJustRelease && _selectedSkillRow >= 0 && _selectedSkillRow < PotentialStatRowCount)
+            {
+                for (int i = 0; i < _potentialButtonRects.Length; i++)
+                {
+                    if (!IsPotentialActionVisible(i)) continue;
+                    UiRect rect = _potentialButtonRects[i];
+                    if (!GameCanvas.isPointer(rect.X, rect.Y, rect.Width, rect.Height)) continue;
+                    GameCanvas.isPointerJustRelease = false;
+                    _selectedPotentialAction = i;
+                    _skillFocusArea = SkillFocusDetail;
+                    if (i == 3) OpenAutoPotentialInput();
+                    else IncreaseSelectedPotential(GetPotentialBatch(i));
+                    return true;
+                }
+            }
+
+            if (GameCanvas.isPointerJustRelease && _selectedSkillRow == IntrinsicRowIndex)
+            {
+                EnsureDefaultIntrinsicActions();
+                for (int i = 0; i < _intrinsicActionCount; i++)
+                {
+                    UiRect rect = GetIntrinsicActionRect(i);
+                    if (!GameCanvas.isPointer(rect.X, rect.Y, rect.Width, rect.Height)) continue;
+                    GameCanvas.isPointerJustRelease = false;
+                    _selectedIntrinsicAction = i;
+                    _skillFocusArea = SkillFocusDetail;
+                    PerformIntrinsicAction(i);
+                    return true;
+                }
+            }
+
+            if (GameCanvas.isPointerJustRelease && _selectedSkillRow >= SkillTemplateStartRow
+                && GameCanvas.isPointer(_assignSkillButtonRect.X, _assignSkillButtonRect.Y, _assignSkillButtonRect.Width, _assignSkillButtonRect.Height))
+            {
+                GameCanvas.isPointerJustRelease = false;
+                _skillFocusArea = SkillFocusDetail;
+                OpenSkillKeyPicker();
+                return true;
+            }
+
+            if (_showSkillKeyPicker && GameCanvas.isPointerJustRelease)
+            {
+                _showSkillKeyPicker = false;
+                _skillFocusArea = SkillFocusDetail;
+                GameCanvas.isPointerJustRelease = false;
+                return true;
+            }
+            return false;
+        }
+
+        private static long GetPotentialIncreaseValue(Char me, int row)
+        {
+            if (me == null) return 0L;
+            if (row == 0) return me.hpFrom1000TiemNang;
+            if (row == 1) return me.mpFrom1000TiemNang;
+            if (row == 2) return me.damFrom1000TiemNang;
+            if (row == 3) return me.defFrom1000TiemNang;
+            if (row == 4) return me.criticalFrom1000Tiemnang;
+            return 0L;
+        }
+
+        private void RequestSelectedIntrinsicInfo()
+        {
+            if (_selectedSkillRow != IntrinsicRowIndex)
+            {
+                ExitIntrinsicListView(false);
+                _showIntrinsicConfirmation = false;
+                _expectingIntrinsicConfirmation = false;
+                return;
+            }
+            _showIntrinsicConfirmation = false;
+            _expectingIntrinsicConfirmation = false;
+            _waitingIntrinsicMenu = true;
+            _selectedIntrinsicAction = -1;
+            EnsureDefaultIntrinsicActions();
+            Service.gI().speacialSkill(0);
+        }
+
+        private void EnsureDefaultIntrinsicActions()
+        {
+            if (_intrinsicActionCount > 0 || string.IsNullOrEmpty(Panel.specialInfo)) return;
+            _intrinsicActionCount = DefaultIntrinsicActionLabels.Length;
+            for (int i = 0; i < _intrinsicActionCount; i++)
+            {
+                _intrinsicActionLabels[i] = DefaultIntrinsicActionLabels[i];
+                _intrinsicActionServerIndices[i] = DefaultIntrinsicActionServerIndices[i];
+            }
+        }
+
+        private bool CaptureIntrinsicDialog(string text)
+        {
+            if (!_waitingIntrinsicMenu || _selectedSkillRow != IntrinsicRowIndex) return false;
+            _waitingIntrinsicMenu = false;
+            _intrinsicDialogText = text ?? string.Empty;
+            _intrinsicActionCount = 0;
+            string listLabel = null;
+            int listServerIndex = -1;
+
+            MyVector menuItems = GameCanvas.menu != null ? GameCanvas.menu.menuItems : null;
+            if (menuItems != null)
+            {
+                int count = System.Math.Min(MaxIntrinsicActionCount, menuItems.size());
+                for (int i = 0; i < count; i++)
+                {
+                    Command command = menuItems.elementAt(i) as Command;
+                    if (command == null || string.IsNullOrEmpty(command.caption)) continue;
+                    string compact = command.caption.Replace("\r", " ").Replace("\n", " ").Trim();
+                    if (compact.IndexOf("Từ chối", StringComparison.OrdinalIgnoreCase) >= 0) continue;
+                    if (IsIntrinsicListAction(compact))
+                    {
+                        listLabel = "Danh sách nội tại";
+                        listServerIndex = i;
+                        continue;
+                    }
+                    if (_intrinsicActionCount >= _intrinsicActionLabels.Length - 1) continue;
+                    _intrinsicActionLabels[_intrinsicActionCount] = FormatIntrinsicActionLabel(compact);
+                    _intrinsicActionServerIndices[_intrinsicActionCount] = i;
+                    _intrinsicActionCount++;
+                }
+            }
+            if (listServerIndex >= 0 && _intrinsicActionCount < _intrinsicActionLabels.Length)
+            {
+                _intrinsicActionLabels[_intrinsicActionCount] = listLabel;
+                _intrinsicActionServerIndices[_intrinsicActionCount] = listServerIndex;
+                _intrinsicActionCount++;
+            }
+            EnsureDefaultIntrinsicActions();
+            _showIntrinsicConfirmation = _expectingIntrinsicConfirmation && _intrinsicActionCount == 1;
+            _expectingIntrinsicConfirmation = false;
+            _selectedIntrinsicAction = _intrinsicActionCount > 0 ? 0 : -1;
+
+            if (Char.chatPopup != null)
+            {
+                Effect2.vEffect2.removeElement(Char.chatPopup);
+                Char.chatPopup = null;
+            }
+            GameCanvas.menu?.doCloseMenu();
+            return true;
+        }
+
+        private static string FormatIntrinsicActionLabel(string label)
+        {
+            string compact = label.Replace("\r", " ").Replace("\n", " ").Trim();
+            if (IsIntrinsicListAction(compact)) return "Danh sách nội tại";
+            return compact;
+        }
+
+        private static bool IsIntrinsicListAction(string label)
+        {
+            return label.IndexOf("Xem tất cả", StringComparison.OrdinalIgnoreCase) >= 0
+                || label.IndexOf("Danh sách", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private void PerformIntrinsicAction(int actionIndex)
+        {
+            if (ModFunc.GI().IsAutoIntrinsicRunning)
+            {
+                GameScr.info1.addInfo("Đang tự động mở nội tại.", 0);
+                return;
+            }
+            EnsureDefaultIntrinsicActions();
+            if (actionIndex < 0 || actionIndex >= _intrinsicActionCount) return;
+            string label = _intrinsicActionLabels[actionIndex] ?? string.Empty;
+            int serverIndex = _intrinsicActionServerIndices[actionIndex];
+            if (serverIndex < 0) return;
+            if (_showIntrinsicConfirmation)
+            {
+                Service.gI().confirmMenu(IntrinsicNpcId, (sbyte)serverIndex);
+                _showIntrinsicConfirmation = false;
+                _waitingIntrinsicMenu = true;
+                _expectingIntrinsicConfirmation = false;
+                Service.gI().speacialSkill(0);
+                SoundMn.gI().panelClick();
+                return;
+            }
+            bool opensIntrinsicList = IsIntrinsicListAction(label);
+            if (opensIntrinsicList)
+            {
+                _waitingIntrinsicList = true;
+                _selectedIntrinsicListIndex = -1;
+            }
+            else
+            {
+                _waitingIntrinsicMenu = true;
+                _expectingIntrinsicConfirmation = true;
+            }
+            Service.gI().confirmMenu(IntrinsicNpcId, (sbyte)serverIndex);
+            if (opensIntrinsicList && HasIntrinsicListData()) EnterIntrinsicListView();
+            SoundMn.gI().panelClick();
+        }
+
+        private void ReturnToIntrinsicMain()
+        {
+            _showIntrinsicConfirmation = false;
+            _selectedIntrinsicSideAction = 0;
+            _skillFocusArea = SkillFocusDetail;
+            _waitingIntrinsicMenu = true;
+            _expectingIntrinsicConfirmation = false;
+            Service.gI().speacialSkill(0);
+            SoundMn.gI().panelClick();
+        }
+
+        private UiRect GetIntrinsicActionRect(int actionIndex)
+        {
+            if (_showIntrinsicConfirmation) return _assignSkillButtonRect;
+            return actionIndex == _intrinsicActionCount - 1 && IsIntrinsicListAction(_intrinsicActionLabels[actionIndex] ?? string.Empty)
+                ? _assignSkillButtonRect
+                : _potentialButtonRects[actionIndex];
+        }
+
+        private static int GetIntrinsicListCount()
+        {
+            Char me = Char.myCharz();
+            return me != null && me.infoSpeacialSkill != null && me.infoSpeacialSkill.Length > 0
+                && me.infoSpeacialSkill[0] != null ? me.infoSpeacialSkill[0].Length : 0;
+        }
+
+        private static bool HasIntrinsicListData()
+        {
+            return GetIntrinsicListCount() > 0;
+        }
+
+        private void EnterIntrinsicListView()
+        {
+            _waitingIntrinsicList = false;
+            _showIntrinsicList = true;
+            _showIntrinsicConfirmation = false;
+            _showSkillKeyPicker = false;
+            _selectedIntrinsicListIndex = -1;
+            _selectedIntrinsicSideAction = 0;
+            _skillFocusArea = SkillFocusDetail;
+            GameCanvas.panel?.hide();
+            _rightScrollAdapter?.Reset();
+            ConfigureScrollAdapters();
+        }
+
+        private void ExitIntrinsicListView(bool playSound = true)
+        {
+            bool wasVisible = _showIntrinsicList || _showIntrinsicInput;
+            _waitingIntrinsicList = false;
+            _showIntrinsicList = false;
+            CloseIntrinsicInput();
+            _selectedIntrinsicListIndex = -1;
+            _selectedIntrinsicSideAction = 0;
+            if (_selectedSkillRow == IntrinsicRowIndex) _skillFocusArea = SkillFocusDetail;
+            _rightScrollAdapter?.Reset();
+            ConfigureScrollAdapters();
+            if (playSound && wasVisible) SoundMn.gI().panelClick();
+        }
+
+        private string GetSelectedIntrinsicInfo()
+        {
+            Char me = Char.myCharz();
+            if (me == null || me.infoSpeacialSkill == null || me.infoSpeacialSkill.Length == 0
+                || me.infoSpeacialSkill[0] == null || _selectedIntrinsicListIndex < 0
+                || _selectedIntrinsicListIndex >= me.infoSpeacialSkill[0].Length) return string.Empty;
+            return me.infoSpeacialSkill[0][_selectedIntrinsicListIndex] ?? string.Empty;
+        }
+
+        private void OpenIntrinsicInput()
+        {
+            string selectedInfo = GetSelectedIntrinsicInfo();
+            if (string.IsNullOrEmpty(selectedInfo)) return;
+            _showIntrinsicInput = true;
+            _intrinsicInputFocus = 0;
+            _intrinsicInputField = new TField();
+            _intrinsicInputField.name = "Nhập chỉ số mong muốn....";
+            _intrinsicInputField.setIputType(TField.INPUT_TYPE_NUMERIC);
+            _intrinsicInputField.setMaxTextLenght(3);
+            ConfigureSkillActionRects();
+            _intrinsicInputField.setFocusWithKb(true);
+            GameCanvas.keyAsciiPress = 0;
+            GameCanvas.clearKeyPressed();
+            SoundMn.gI().panelClick();
+        }
+
+        private void CloseIntrinsicInput()
+        {
+            _showIntrinsicInput = false;
+            if (_intrinsicInputField != null) _intrinsicInputField.setFocus(false);
+            _intrinsicInputField = null;
+            _intrinsicInputFocus = 0;
+        }
+
+        private void SetIntrinsicInputFocus(int focus)
+        {
+            _intrinsicInputFocus = focus;
+            if (_intrinsicInputField != null) _intrinsicInputField.setFocus(focus == 0);
+            SoundMn.gI().panelClick();
+        }
+
+        private void HandleIntrinsicInput()
+        {
+            if (GameCanvas.isPointerJustRelease)
+            {
+                if (GameCanvas.isPointer(_intrinsicInputCloseRect.X, _intrinsicInputCloseRect.Y,
+                    _intrinsicInputCloseRect.Width, _intrinsicInputCloseRect.Height))
+                {
+                    GameCanvas.clearAllPointerEvent();
+                    CloseIntrinsicInput();
+                    return;
+                }
+                if (_intrinsicInputField != null && GameCanvas.isPointer(_intrinsicInputField.x, _intrinsicInputField.y,
+                    _intrinsicInputField.width, _intrinsicInputField.height))
+                {
+                    GameCanvas.clearAllPointerEvent();
+                    SetIntrinsicInputFocus(0);
+                    _intrinsicInputField.setFocusWithKb(true);
+                    return;
+                }
+                if (GameCanvas.isPointer(_intrinsicNormalButtonRect.X, _intrinsicNormalButtonRect.Y,
+                    _intrinsicNormalButtonRect.Width, _intrinsicNormalButtonRect.Height))
+                {
+                    GameCanvas.clearAllPointerEvent();
+                    SetIntrinsicInputFocus(1);
+                    SubmitIntrinsicInput(false);
+                    return;
+                }
+                if (GameCanvas.isPointer(_intrinsicVipButtonRect.X, _intrinsicVipButtonRect.Y,
+                    _intrinsicVipButtonRect.Width, _intrinsicVipButtonRect.Height))
+                {
+                    GameCanvas.clearAllPointerEvent();
+                    SetIntrinsicInputFocus(2);
+                    SubmitIntrinsicInput(true);
+                    return;
+                }
+                GameCanvas.clearAllPointerEvent();
+            }
+
+            if (GameCanvas.keyAsciiPress == 27 || GameCanvas.keyPressed[12] || GameCanvas.keyPressed[13])
+            {
+                GameCanvas.keyAsciiPress = 0;
+                GameCanvas.clearKeyPressed();
+                CloseIntrinsicInput();
+                return;
+            }
+
+            if (GameCanvas.keyPressed[21] || GameCanvas.keyPressed[2])
+            {
+                ConsumeDirectionKeys(21, 2);
+                SetIntrinsicInputFocus(0);
+                return;
+            }
+            if (GameCanvas.keyPressed[22] || GameCanvas.keyPressed[8])
+            {
+                ConsumeDirectionKeys(22, 8);
+                SetIntrinsicInputFocus(_intrinsicInputFocus == 2 ? 2 : 1);
+                return;
+            }
+            if (GameCanvas.keyPressed[23] || GameCanvas.keyPressed[4])
+            {
+                ConsumeDirectionKeys(23, 4);
+                if (_intrinsicInputFocus > 0) SetIntrinsicInputFocus(1);
+                return;
+            }
+            if (GameCanvas.keyPressed[24] || GameCanvas.keyPressed[6])
+            {
+                ConsumeDirectionKeys(24, 6);
+                if (_intrinsicInputFocus > 0) SetIntrinsicInputFocus(2);
+                return;
+            }
+
+            if (GameCanvas.keyPressed[Main.isPC ? 25 : 5])
+            {
+                GameCanvas.keyPressed[25] = false;
+                GameCanvas.keyPressed[15] = false;
+                GameCanvas.keyPressed[5] = false;
+                if (_intrinsicInputFocus == 0) SetIntrinsicInputFocus(1);
+                else SubmitIntrinsicInput(_intrinsicInputFocus == 2);
+                return;
+            }
+
+            int ascii = GameCanvas.keyAsciiPress;
+            if (_intrinsicInputFocus == 0 && ascii != 0 && ascii != 10 && ascii != 13)
+            {
+                _intrinsicInputField?.keyPressed(ascii);
+                GameCanvas.keyAsciiPress = 0;
+            }
+        }
+
+        private void SubmitIntrinsicInput(bool vip)
+        {
+            string value = _intrinsicInputField != null ? _intrinsicInputField.getText() : string.Empty;
+            if (!int.TryParse(value, out int target) || target <= 0)
+            {
+                GameScr.info1.addInfo("Chỉ số đã nhập không hợp lệ.", 0);
+                return;
+            }
+            string selectedInfo = GetSelectedIntrinsicInfo();
+            if (string.IsNullOrEmpty(selectedInfo)) return;
+            ModFunc.GI().curSelectIntrinsic = selectedInfo;
+            ModFunc.GI().SetAutoIntrinsic(target, vip);
+            CloseIntrinsicInput();
+            ExitIntrinsicListView(false);
+        }
+
+        private static long GetPotentialCurrentValue(Char me, int row)
+        {
+            if (me == null) return 0L;
+            if (row == 0) return me.cHPGoc;
+            if (row == 1) return me.cMPGoc;
+            if (row == 2) return me.cDamGoc;
+            if (row == 3) return me.cDefGoc;
+            if (row == 4) return me.cCriticalGoc;
+            return 0L;
+        }
+
+        private static long GetPotentialCost(Char me, int row)
+        {
+            if (me == null) return 0L;
+            if (row == 0) return me.cHPGoc + 1000L;
+            if (row == 1) return me.cMPGoc + 1000L;
+            if (row == 2) return me.cDamGoc * (long)me.expForOneAdd;
+            if (row == 3) return 500000L + me.cDefGoc * 100000L;
+            if (row == 4 && Panel.t_tiemnang != null && Panel.t_tiemnang.Length > 0)
+            {
+                int level = System.Math.Max(0, System.Math.Min(me.cCriticalGoc, Panel.t_tiemnang.Length - 1));
+                return Panel.t_tiemnang[level];
+            }
+            return 0L;
+        }
+
+        private static long GetPotentialBatchCost(Char me, int row, int batch)
+        {
+            if (me == null || batch <= 0) return 0L;
+            if (row == 0) return batch * (2L * (me.cHPGoc + 1000L) + (batch - 1L) * 20L) / 2L;
+            if (row == 1) return batch * (2L * (me.cMPGoc + 1000L) + (batch - 1L) * 20L) / 2L;
+            if (row == 2) return batch * (2L * me.cDamGoc + batch - 1L) / 2L * me.expForOneAdd;
+            if (row == 3) return batch * (2L * (me.cDefGoc + 5L) + batch - 1L) / 2L * 100000L;
+            if (row == 4 && Panel.t_tiemnang != null && Panel.t_tiemnang.Length > 0)
+            {
+                long total = 0L;
+                for (int i = 0; i < batch; i++)
+                {
+                    int level = System.Math.Max(0, System.Math.Min(me.cCriticalGoc + i, Panel.t_tiemnang.Length - 1));
+                    total += Panel.t_tiemnang[level];
+                }
+                return total;
+            }
+            return 0L;
+        }
+
+        private static int GetPotentialBatch(int actionIndex)
+        {
+            return actionIndex == 0 ? 1 : (actionIndex == 1 ? 10 : 100);
+        }
+
+        private bool IsPotentialActionVisible(int actionIndex)
+        {
+            Char me = Char.myCharz();
+            if (actionIndex < 0 || actionIndex >= _potentialButtonRects.Length || me == null
+                || _selectedSkillRow < 0 || _selectedSkillRow >= PotentialStatRowCount) return false;
+            // The original panel only supports a single critical upgrade per request.
+            if (_selectedSkillRow == 4 && actionIndex != 0) return false;
+            int batch = actionIndex == 3 ? 1 : GetPotentialBatch(actionIndex);
+            long required = GetPotentialBatchCost(me, _selectedSkillRow, batch);
+            return required > 0L && me.cTiemNang >= required;
+        }
+
+        private int GetFirstVisiblePotentialAction()
+        {
+            for (int i = 0; i < _potentialButtonRects.Length; i++)
+                if (IsPotentialActionVisible(i)) return i;
+            return -1;
+        }
+
+        private void IncreaseSelectedPotential(int batch)
+        {
+            Char me = Char.myCharz();
+            if (me == null || _selectedSkillRow < 0 || _selectedSkillRow >= PotentialStatRowCount) return;
+            if (me.statusMe == 14)
+            {
+                GameCanvas.startOKDlg(mResources.can_not_do_when_die);
+                return;
+            }
+
+            long required = GetPotentialBatchCost(me, _selectedSkillRow, batch);
+            if (required <= 0L || me.cTiemNang < required)
+            {
+                GameCanvas.startOKDlg("Không đủ tiềm năng. Cần " + NinjaUtil.getMoneys(required) + ".", isError: false);
+                return;
+            }
+
+            Service.gI().upPotential(false, _selectedSkillRow, batch);
+            SoundMn.gI().panelClick();
+        }
+
+        private void OpenAutoPotentialInput()
+        {
+            if (_selectedSkillRow < 0 || _selectedSkillRow >= PotentialStatRowCount || !IsPotentialActionVisible(3)) return;
+            _showSkillKeyPicker = false;
+            Close();
+            ModFunc.GI().perform(100, _selectedSkillRow + "-False");
+        }
+
+        private SkillTemplate GetSelectedSkillTemplate()
+        {
+            int templateIndex = _selectedSkillRow - SkillTemplateStartRow;
+            Char me = Char.myCharz();
+            if (templateIndex < 0 || me == null || me.nClass == null || me.nClass.skillTemplates == null
+                || templateIndex >= me.nClass.skillTemplates.Length) return null;
+            return me.nClass.skillTemplates[templateIndex];
+        }
+
+        private Skill GetSelectedSkill()
+        {
+            SkillTemplate template = GetSelectedSkillTemplate();
+            Char me = Char.myCharz();
+            return template != null && me != null ? me.getSkill(template) : null;
+        }
+
+        private void OpenSkillKeyPicker()
+        {
+            Skill skill = GetSelectedSkill();
+            if (skill == null)
+            {
+                GameCanvas.startOKDlg("Kỹ năng chưa được học.", isError: false);
+                return;
+            }
+            bool useTouchSlots = GameCanvas.isTouch && !Main.isPC;
+            Skill[] slots = useTouchSlots ? GameScr.onScreenSkill : GameScr.keySkill;
+            _selectedSkillKeyIndex = 0;
+            if (slots != null)
+            {
+                int limit = System.Math.Min(SkillKeyButtonCount, slots.Length);
+                for (int i = 0; i < limit; i++)
+                {
+                    if (slots[i] == null || slots[i].template == null || slots[i].template.id != skill.template.id) continue;
+                    _selectedSkillKeyIndex = i;
+                    break;
+                }
+            }
+            _showSkillKeyPicker = true;
+            _skillFocusArea = SkillFocusKeys;
+            SoundMn.gI().panelClick();
+        }
+
+        private void AssignSelectedSkillToKey(int keyIndex)
+        {
+            Skill skill = GetSelectedSkill();
+            if (skill == null) return;
+            bool useTouchSlots = GameCanvas.isTouch && !Main.isPC;
+            Skill[] slots = useTouchSlots ? GameScr.onScreenSkill : GameScr.keySkill;
+            if (slots == null || keyIndex < 0 || keyIndex >= slots.Length) return;
+
+            for (int i = 0; i < slots.Length; i++)
+            {
+                if (slots[i] != null && slots[i].template != null && slots[i].template.id == skill.template.id)
+                    slots[i] = null;
+            }
+            slots[keyIndex] = skill;
+            if (useTouchSlots) GameScr.gI().saveonScreenSkillToRMS();
+            else GameScr.gI().saveKeySkillToRMS();
+            _showSkillKeyPicker = false;
+            _skillFocusArea = SkillFocusDetail;
+            SoundMn.gI().panelClick();
+        }
+
+        private void PaintSkillTabContent(mGraphics g)
+        {
+            PaintSkillHeaders(g);
+            PaintSkillListColumn(g);
+            PaintSkillDetailColumn(g);
+            if (_showSkillKeyPicker) PaintSkillKeyPicker(g);
+            if (_showIntrinsicList || _showIntrinsicConfirmation) PaintIntrinsicSideButtons(g);
+        }
+
+        private void PaintSkillHeaders(mGraphics g)
+        {
+            PaintSkillHeader(g, _skillListHeaderRect, "Tiềm năng : " + NinjaUtil.getMoneys(Char.myCharz() != null ? Char.myCharz().cTiemNang : 0L));
+            PaintSkillHeader(g, _skillDetailHeaderRect, _showIntrinsicList ? "Danh sách nội tại" : "Chi tiết");
+        }
+
+        private static void PaintSkillHeader(mGraphics g, UiRect rect, string text)
+        {
+            g.setColor(0xD93A2E);
+            g.fillRect(rect.X, rect.Y, rect.Width, rect.Height);
+            g.setColor(0xB52B23);
+            g.drawRect(rect.X, rect.Y, rect.Width, rect.Height);
+            mFont.tahoma_7b_white.drawString(g, text, rect.X + rect.Width / 2, rect.Y + 4, mFont.CENTER);
+        }
+
+        private void PaintSkillListColumn(mGraphics g)
+        {
+            g.setColor(0xF2F0ED);
+            g.fillRect(_leftColRect.X, _leftColRect.Y, _leftColRect.Width, _leftColRect.Height);
+            g.setColor(0xC4B79B);
+            g.drawRect(_leftColRect.X, _leftColRect.Y, _leftColRect.Width, _leftColRect.Height);
+
+            using (UiRenderState.Push(g, _leftColRect, clip: true))
+            {
+                int scrollY = _leftScrollAdapter != null ? _leftScrollAdapter.ScrollY : 0;
+                int rowCount = GetSkillRowCount();
+                for (int i = 0; i < rowCount; i++)
+                {
+                    int rowY = _leftColRect.Y + i * SkillRowHeight - scrollY;
+                    if (rowY + SkillRowHeight <= _leftColRect.Y || rowY >= _leftColRect.Y + _leftColRect.Height) continue;
+                    PaintSkillListRow(g, i, rowY);
+                }
+            }
+        }
+
+        private void PaintSkillListRow(mGraphics g, int row, int y)
+        {
+            bool selected = row == _selectedSkillRow;
+            g.setColor(selected ? 0xFFD038 : 0xF2F0ED);
+            g.fillRect(_leftColRect.X + 1, y, _leftColRect.Width - 2, SkillRowHeight - 1);
+            g.setColor(0xC4B79B);
+            g.drawLine(_leftColRect.X + 1, y + SkillRowHeight - 1, _leftColRect.X + _leftColRect.Width - 2, y + SkillRowHeight - 1);
+
+            if (GameScr.imgSkill != null) g.drawImage(GameScr.imgSkill, _leftColRect.X + 3, y + 3, 0);
+            if (row < PotentialStatRowCount) PaintPotentialListRow(g, row, y);
+            else if (row == IntrinsicRowIndex) PaintIntrinsicListRow(g, y);
+            else PaintTemplateSkillListRow(g, row - SkillTemplateStartRow, y);
+        }
+
+        private void PaintPotentialListRow(mGraphics g, int row, int y)
+        {
+            Char me = Char.myCharz();
+            if (me == null) return;
+            SmallImage.drawSmallImage(g, PotentialIcons[row], _leftColRect.X + 7, y + 7, 0, 0);
+
+            int textX = _leftColRect.X + 41;
+            int textWidth = _leftColRect.Width - 46;
+            string valueSuffix = row == 4 ? "%" : string.Empty;
+            string title = PotentialNames[row] + " : " + NinjaUtil.getMoneys(GetPotentialCurrentValue(me, row)) + valueSuffix;
+            string subtitle = NinjaUtil.getMoneys(GetPotentialCost(me, row)) + " tiềm năng : Tăng "
+                + GetPotentialIncreaseValue(me, row) + valueSuffix;
+            mFont.tahoma_7b_blue.drawString(g, TruncateString(mFont.tahoma_7b_blue, title, textWidth), textX, y + 4, mFont.LEFT);
+            mFont.tahoma_7_grey.drawString(g, TruncateString(mFont.tahoma_7_grey, subtitle, textWidth), textX, y + 19, mFont.LEFT);
+        }
+
+        private void PaintIntrinsicListRow(mGraphics g, int y)
+        {
+            if (Panel.specialInfo != null && Panel.spearcialImage >= 0)
+                SmallImage.drawSmallImage(g, Panel.spearcialImage, _leftColRect.X + 7, y + 7, 0, 0);
+            int textX = _leftColRect.X + 41;
+            int textWidth = _leftColRect.Width - 46;
+            mFont.tahoma_7b_blue.drawString(g, "Nội tại", textX, y + 4, mFont.LEFT);
+            string summary = string.IsNullOrEmpty(Panel.specialInfo) ? "Chưa mở nội tại" : Panel.specialInfo;
+            mFont.tahoma_7_grey.drawString(g, TruncateString(mFont.tahoma_7_grey, summary, textWidth), textX, y + 19, mFont.LEFT);
+        }
+
+        private void PaintTemplateSkillListRow(mGraphics g, int templateIndex, int y)
+        {
+            Char me = Char.myCharz();
+            if (me == null || me.nClass == null || me.nClass.skillTemplates == null || templateIndex >= me.nClass.skillTemplates.Length) return;
+            SkillTemplate template = me.nClass.skillTemplates[templateIndex];
+            if (template == null) return;
+            Skill skill = me.getSkill(template);
+            SmallImage.drawSmallImage(g, template.iconId, _leftColRect.X + 7, y + 7, 0, 0);
+
+            int textX = _leftColRect.X + 41;
+            int textRight = _leftColRect.X + _leftColRect.Width - 5;
+            int nameWidth = _leftColRect.Width - 85;
+            if (skill != null)
+            {
+                mFont.tahoma_7b_blue.drawString(g, TruncateString(mFont.tahoma_7b_blue, template.name, nameWidth), textX, y + 4, mFont.LEFT);
+                mFont.tahoma_7_blue.drawString(g, "Cấp " + skill.getDisplayLevel(), textRight, y + 4, mFont.RIGHT);
+                int barWidth = System.Math.Min(54, _leftColRect.Width - 50);
+                int progress = skill.curExp;
+                if (progress < 0) progress = 0;
+                if (progress > 1000) progress = 1000;
+                g.setColor(0xC9D9AA);
+                g.fillRect(textX, y + 22, barWidth, 7);
+                g.setColor(0x00BE69);
+                g.fillRect(textX, y + 22, progress * barWidth / 1000, 7);
+            }
+            else
+            {
+                mFont.tahoma_7b_green.drawString(g, TruncateString(mFont.tahoma_7b_green, template.name, _leftColRect.Width - 48), textX, y + 4, mFont.LEFT);
+                Skill firstLevel = template.skills != null && template.skills.Length > 0 ? template.skills[0] : null;
+                string requirement = firstLevel != null ? "Cần " + NinjaUtil.getMoneys(firstLevel.powRequire) + " tiềm năng để học" : "Chưa học";
+                mFont.tahoma_7_grey.drawString(g, TruncateString(mFont.tahoma_7_grey, requirement, _leftColRect.Width - 46), textX, y + 19, mFont.LEFT);
+            }
+        }
+
+        private void PaintSkillDetailColumn(mGraphics g)
+        {
+            g.setColor(0xEEE7DC);
+            g.fillRect(_rightBodyRect.X, _rightBodyRect.Y, _rightBodyRect.Width, _rightBodyRect.Height);
+            g.setColor(0xC4B79B);
+            g.drawRect(_rightBodyRect.X, _rightBodyRect.Y, _rightBodyRect.Width, _rightBodyRect.Height);
+            if (_showIntrinsicList)
+            {
+                PaintIntrinsicList(g);
+                return;
+            }
+            if (_selectedSkillRow < 0) return;
+            if (_selectedSkillRow < PotentialStatRowCount) PaintPotentialDetail(g);
+            else if (_selectedSkillRow == IntrinsicRowIndex) PaintIntrinsicDetail(g);
+            else PaintTemplateSkillDetail(g);
+        }
+
+        private void PaintPotentialDetail(mGraphics g)
+        {
+            Char me = Char.myCharz();
+            if (me == null) return;
+            long increase = GetPotentialIncreaseValue(me, _selectedSkillRow);
+            int action = IsPotentialActionVisible(_selectedPotentialAction) ? _selectedPotentialAction : GetFirstVisiblePotentialAction();
+            string suffix = _selectedSkillRow == 4 ? "%" : string.Empty;
+            string detail;
+            if (action < 0)
+            {
+                detail = "Chưa đủ tiềm năng để tăng " + PotentialNames[_selectedSkillRow] + ".";
+            }
+            else if (action == 3)
+            {
+                detail = "Tự động tăng " + PotentialNames[_selectedSkillRow] + " theo số lượng đã nhập.";
+            }
+            else
+            {
+                int batch = GetPotentialBatch(action);
+                detail = "Sử dụng " + NinjaUtil.getMoneys(GetPotentialBatchCost(me, _selectedSkillRow, batch))
+                    + " tiềm năng để nâng " + increase * batch + suffix + " " + PotentialNames[_selectedSkillRow] + ".";
+            }
+            DrawWrappedText(g, mFont.tahoma_7b_dark, detail, _rightBodyRect.X + 12, _rightBodyRect.Y + 8, _rightBodyRect.Width - 24);
+
+            for (int i = 0; i < _potentialButtonRects.Length; i++)
+            {
+                if (!IsPotentialActionVisible(i)) continue;
+                string label = i == 3 ? "Tăng\ntự động" : "Tăng " + increase * GetPotentialBatch(i) + suffix;
+                PaintSkillActionButton(g, _potentialButtonRects[i], label, _skillFocusArea == SkillFocusDetail && i == action);
+            }
+        }
+
+        private void PaintIntrinsicDetail(mGraphics g)
+        {
+            EnsureDefaultIntrinsicActions();
+            int centerX = _rightBodyRect.X + _rightBodyRect.Width / 2;
+            mFont.tahoma_7b_dark.drawString(g, "Nội tại", centerX, _rightBodyRect.Y + 8, mFont.CENTER);
+            if (Panel.specialInfo != null && Panel.spearcialImage >= 0)
+                SmallImage.drawSmallImage(g, Panel.spearcialImage, centerX, _rightBodyRect.Y + 35, 0, 3);
+            string detail = !string.IsNullOrEmpty(Panel.specialInfo)
+                ? Panel.specialInfo
+                : (!string.IsNullOrEmpty(_intrinsicDialogText) ? _intrinsicDialogText : "Chưa mở nội tại.");
+            DrawWrappedText(g, mFont.tahoma_7_green2, detail, _rightBodyRect.X + 12, _rightBodyRect.Y + 58, _rightBodyRect.Width - 24);
+
+            if (_intrinsicActionCount <= 0) return;
+            int dividerY = GetIntrinsicActionRect(0).Y - 7;
+            g.setColor(0xB29468);
+            g.drawLine(_rightBodyRect.X + 10, dividerY, _rightBodyRect.X + _rightBodyRect.Width - 10, dividerY);
+            for (int i = 0; i < _intrinsicActionCount; i++)
+            {
+                bool focused = _skillFocusArea == SkillFocusDetail && i == _selectedIntrinsicAction;
+                PaintSkillActionButton(g, GetIntrinsicActionRect(i), _intrinsicActionLabels[i], focused);
+            }
+        }
+
+        private void PaintIntrinsicList(mGraphics g)
+        {
+            Char me = Char.myCharz();
+            int count = GetIntrinsicListCount();
+            if (me == null || count <= 0)
+            {
+                mFont.tahoma_7_grey.drawString(g, "Chưa có danh sách nội tại.",
+                    _rightBodyRect.X + _rightBodyRect.Width / 2, _rightBodyRect.Y + 12, mFont.CENTER);
+                return;
+            }
+
+            using (UiRenderState.Push(g, _rightBodyRect, clip: true))
+            {
+                int scrollY = _rightScrollAdapter != null ? _rightScrollAdapter.ScrollY : 0;
+                for (int i = 0; i < count; i++)
+                {
+                    int rowY = _rightBodyRect.Y + i * IntrinsicListRowHeight - scrollY;
+                    if (rowY + IntrinsicListRowHeight <= _rightBodyRect.Y
+                        || rowY >= _rightBodyRect.Y + _rightBodyRect.Height) continue;
+                    bool selected = i == _selectedIntrinsicListIndex;
+                    g.setColor(selected ? 0xFFD038 : 0xF2F0ED);
+                    g.fillRect(_rightBodyRect.X + 1, rowY, _rightBodyRect.Width - 2, IntrinsicListRowHeight - 1);
+                    g.setColor(0xC4B79B);
+                    g.drawLine(_rightBodyRect.X + 1, rowY + IntrinsicListRowHeight - 1,
+                        _rightBodyRect.X + _rightBodyRect.Width - 2, rowY + IntrinsicListRowHeight - 1);
+
+                    PaintIntrinsicIconFrame(g, _rightBodyRect.X + 3, rowY + 2, selected);
+                    if (me.imgSpeacialSkill != null && me.imgSpeacialSkill.Length > 0
+                        && me.imgSpeacialSkill[0] != null && i < me.imgSpeacialSkill[0].Length)
+                        SmallImage.drawSmallImage(g, me.imgSpeacialSkill[0][i], _rightBodyRect.X + 18,
+                            rowY + IntrinsicListRowHeight / 2, 0, 3);
+
+                    string info = me.infoSpeacialSkill[0][i] ?? string.Empty;
+                    string[] lines = mFont.tahoma_7_grey.splitFontArray(info, _rightBodyRect.Width - 46);
+                    int textX = _rightBodyRect.X + 36;
+                    if (lines.Length > 0)
+                        mFont.tahoma_7_blue.drawString(g, lines[0], textX, rowY + 4, mFont.LEFT);
+                    if (lines.Length > 1)
+                        mFont.tahoma_7_grey.drawString(g, lines[1], textX, rowY + 19, mFont.LEFT);
+                }
+            }
+        }
+
+        private static void PaintIntrinsicIconFrame(mGraphics g, int x, int y, bool selected)
+        {
+            g.setColor(selected ? 0x8B42F4 : 0xE68A00);
+            g.fillRect(x, y, 31, 31);
+            g.setColor(0xFFD15A);
+            g.fillRect(x + 2, y + 2, 27, 27);
+            g.setColor(0xE7F4F4);
+            g.fillRect(x + 4, y + 4, 23, 23);
+            g.setColor(0x9B6500);
+            g.drawRect(x, y, 30, 30);
+        }
+
+        private void PaintIntrinsicSideButtons(mGraphics g)
+        {
+            bool backFocused = _skillFocusArea == SkillFocusIntrinsicSide && _selectedIntrinsicSideAction == 0;
+            PaintSkillActionButton(g, _intrinsicSideButtonRects[0], "Quay lại", backFocused);
+            if (!_showIntrinsicList || _selectedIntrinsicListIndex < 0) return;
+            bool selectFocused = _skillFocusArea == SkillFocusIntrinsicSide && _selectedIntrinsicSideAction == 1;
+            PaintSkillActionButton(g, _intrinsicSideButtonRects[1], "Chọn chỉ số", selectFocused);
+        }
+
+        private void PaintIntrinsicInput(mGraphics g)
+        {
+            g.setColor(0xD7C4A9);
+            g.fillRect(_intrinsicInputDialogRect.X, _intrinsicInputDialogRect.Y,
+                _intrinsicInputDialogRect.Width, _intrinsicInputDialogRect.Height);
+            g.setColor(0x6B5745);
+            g.drawRect(_intrinsicInputDialogRect.X, _intrinsicInputDialogRect.Y,
+                _intrinsicInputDialogRect.Width, _intrinsicInputDialogRect.Height);
+            mFont.tahoma_7b_dark.drawString(g, "Nhập chỉ số", _intrinsicInputDialogRect.X + 14,
+                _intrinsicInputDialogRect.Y + 7, mFont.LEFT);
+
+            g.setColor(0xF7C400);
+            g.fillRect(_intrinsicInputCloseRect.X, _intrinsicInputCloseRect.Y,
+                _intrinsicInputCloseRect.Width, _intrinsicInputCloseRect.Height);
+            g.setColor(0xE59600);
+            g.drawRect(_intrinsicInputCloseRect.X, _intrinsicInputCloseRect.Y,
+                _intrinsicInputCloseRect.Width, _intrinsicInputCloseRect.Height);
+            g.setColor(0xE35A24);
+            g.drawLine(_intrinsicInputCloseRect.X + 5, _intrinsicInputCloseRect.Y + 5,
+                _intrinsicInputCloseRect.X + 15, _intrinsicInputCloseRect.Y + 15);
+            g.drawLine(_intrinsicInputCloseRect.X + 15, _intrinsicInputCloseRect.Y + 5,
+                _intrinsicInputCloseRect.X + 5, _intrinsicInputCloseRect.Y + 15);
+
+            _intrinsicInputField?.paint(g);
+            g.setClip(0, 0, GameCanvas.w, GameCanvas.h + 1);
+            PaintSkillActionButton(g, _intrinsicNormalButtonRect, "Mở thường", _intrinsicInputFocus == 1);
+            PaintSkillActionButton(g, _intrinsicVipButtonRect, "Mở VIP", _intrinsicInputFocus == 2);
+        }
+
+        private void PaintTemplateSkillDetail(mGraphics g)
+        {
+            SkillTemplate template = GetSelectedSkillTemplate();
+            if (template == null) return;
+            Skill skill = GetSelectedSkill();
+            int centerX = _rightBodyRect.X + _rightBodyRect.Width / 2;
+            int y = _rightBodyRect.Y + 7;
+            mFont.tahoma_7b_dark.drawString(g, template.name, centerX, y, mFont.CENTER);
+            y += 15;
+
+            if (template.description != null)
+            {
+                for (int i = 0; i < template.description.Length; i++)
+                {
+                    string[] lines = mFont.tahoma_7_green2.splitFontArray(template.description[i] ?? string.Empty, _rightBodyRect.Width - 24);
+                    for (int j = 0; j < lines.Length; j++)
+                    {
+                        mFont.tahoma_7_green2.drawString(g, lines[j], centerX, y, mFont.CENTER);
+                        y += 13;
+                    }
+                }
+            }
+
+            y += 4;
+            g.setColor(0xB29468);
+            g.drawLine(_rightBodyRect.X + 10, y, _rightBodyRect.X + _rightBodyRect.Width - 10, y);
+            y += 8;
+
+            if (skill == null)
+            {
+                mFont.tahoma_7_grey.drawString(g, "Chưa học", centerX, y, mFont.CENTER);
+                Skill firstLevel = template.skills != null && template.skills.Length > 0 ? template.skills[0] : null;
+                if (firstLevel != null)
+                    mFont.tahoma_7_blue.drawString(g, "Cần " + NinjaUtil.getMoneys(firstLevel.powRequire) + " tiềm năng", centerX, y + 15, mFont.CENTER);
+                return;
+            }
+
+            mFont.tahoma_7_blue.drawString(g, "Cấp độ: " + skill.getDisplayLevel(), centerX, y, mFont.CENTER);
+            y += 14;
+            string damageInfo = NinjaUtil.Replace(template.damInfo ?? string.Empty, "#", skill.damage + string.Empty);
+            mFont.tahoma_7_blue.drawString(g, damageInfo, centerX, y, mFont.CENTER);
+            y += 14;
+            mFont.tahoma_7_blue.drawString(g, "KI tiêu hao: " + skill.manaUse + (template.manaUseType == 1 ? "%" : string.Empty), centerX, y, mFont.CENTER);
+            y += 14;
+            mFont.tahoma_7_blue.drawString(g, "Hồi chiêu: " + skill.strTimeReplay() + "s", centerX, y, mFont.CENTER);
+
+            int dividerY = _assignSkillButtonRect.Y - 7;
+            g.setColor(0xB29468);
+            g.drawLine(_rightBodyRect.X + 10, dividerY, _rightBodyRect.X + _rightBodyRect.Width - 10, dividerY);
+            PaintSkillActionButton(g, _assignSkillButtonRect, "Gán phím ô", _showSkillKeyPicker || _skillFocusArea == SkillFocusDetail);
+        }
+
+        private static void PaintSkillActionButton(mGraphics g, UiRect rect, string label, bool active)
+        {
+            g.setColor(active ? 0x55BE00 : 0xE99A00);
+            g.fillRect(rect.X, rect.Y, rect.Width, rect.Height);
+            g.setColor(active ? 0x438F00 : 0xB86F00);
+            g.drawRect(rect.X, rect.Y, rect.Width, rect.Height);
+            int newline = label.IndexOf('\n');
+            if (newline < 0)
+            {
+                mFont.tahoma_7b_dark.drawString(g, label, rect.X + rect.Width / 2, rect.Y + (rect.Height - 9) / 2, mFont.CENTER);
+                return;
+            }
+            mFont.tahoma_7b_dark.drawString(g, label.Substring(0, newline), rect.X + rect.Width / 2, rect.Y + 3, mFont.CENTER);
+            mFont.tahoma_7b_dark.drawString(g, label.Substring(newline + 1), rect.X + rect.Width / 2, rect.Y + 15, mFont.CENTER);
+        }
+
+        private void PaintSkillKeyPicker(mGraphics g)
+        {
+            Skill selectedSkill = GetSelectedSkill();
+            if (selectedSkill == null) return;
+            bool useTouchSlots = GameCanvas.isTouch && !Main.isPC;
+            Skill[] slots = useTouchSlots ? GameScr.onScreenSkill : GameScr.keySkill;
+            for (int i = 0; i < _skillKeyButtonRects.Length; i++)
+            {
+                bool assigned = slots != null && i < slots.Length && slots[i] != null && slots[i].template != null
+                    && slots[i].template.id == selectedSkill.template.id;
+                bool focused = _skillFocusArea == SkillFocusKeys && i == _selectedSkillKeyIndex;
+                PaintSkillActionButton(g, _skillKeyButtonRects[i], "Phím " + (i + 1), assigned || focused);
+                if (focused)
+                {
+                    g.setColor(0xFFFFFF);
+                    g.drawRect(_skillKeyButtonRects[i].X + 2, _skillKeyButtonRects[i].Y + 2,
+                        _skillKeyButtonRects[i].Width - 4, _skillKeyButtonRects[i].Height - 4);
+                }
+            }
         }
 
         private void PaintTaskTabContent(mGraphics g)

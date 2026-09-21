@@ -607,11 +607,7 @@ namespace Game1
 				}
 				if (currentScreen != null)
 				{
-					if (Game1.UI.CustomMenu.CustomMenuScr.IsOpen)
-					{
-						Game1.UI.CustomMenu.CustomMenuScr.UpdateOverlay();
-					}
-					else if (ChatPopup.serverChatPopUp != null)
+					if (ChatPopup.serverChatPopUp != null)
 					{
 						ChatPopup.serverChatPopUp.update();
 						ChatPopup.serverChatPopUp.updateKey();
@@ -629,6 +625,10 @@ namespace Game1
 					{
 						menu.updateMenu();
 						menu.updateMenuKey();
+					}
+					else if (Game1.UI.CustomMenu.CustomMenuScr.IsOpen)
+					{
+						Game1.UI.CustomMenu.CustomMenuScr.UpdateOverlay();
 					}
 					else if (panel.isShow)
 					{
@@ -2379,6 +2379,10 @@ namespace Game1
 					}
 				}
 				Res.paintOnScreenDebug(g);
+				if (Game1.UI.CustomMenu.CustomMenuScr.IsOpen)
+				{
+					Game1.UI.CustomMenu.CustomMenuScr.PaintOverlay(g);
+				}
 				InfoDlg.paint(g);
 				if (currentDialog != null)
 				{
@@ -2413,10 +2417,6 @@ namespace Game1
 					{
 						effect.paint(g);
 					}
-				}
-				if (Game1.UI.CustomMenu.CustomMenuScr.IsOpen)
-				{
-					Game1.UI.CustomMenu.CustomMenuScr.PaintOverlay(g);
 				}
 				if (Char.isLoadingMap || LoginScr.isContinueToLogin || ServerListScreen.waitToLogin || ServerListScreen.isWait)
 				{
