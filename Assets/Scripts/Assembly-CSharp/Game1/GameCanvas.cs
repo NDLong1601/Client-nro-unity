@@ -2242,6 +2242,10 @@ namespace Game1
 		public void scrollMouse(int a)
 		{
 			pXYScrollMouse = a;
+			if (Game1.UI.CustomMenu.CustomMenuScr.HandleMouseWheel(a))
+			{
+				return;
+			}
 			if (panel2 != null && panel2.isShow
 				&& pxMouse >= panel2.X && pxMouse <= panel2.X + panel2.W
 				&& pyMouse >= panel2.Y && pyMouse <= panel2.Y + panel2.H)
@@ -2464,7 +2468,8 @@ namespace Game1
 					g.setClip(0, 0, w, h);
 				}
                 bool isPKHistoryOpen = panel.isPKHistoryOpen();
-                if (!panel.isShow || isPKHistoryOpen)
+                if ((!panel.isShow || isPKHistoryOpen)
+                    && !Game1.UI.CustomMenu.CustomMenuScr.IsOpen)
                 {
                     g.drawImage(mScreen.keyTouch != 10000 ? GameScr.imgNut : GameScr.imgNutF,GameScr.xC - 20, GameScr.yC + 17 + mGraphics.addYWhenOpenKeyBoard, mGraphics.HCENTER | mGraphics.VCENTER);
                     mFont.tahoma_7b_white.drawString(g, isPKHistoryOpen ? "Tải\nlại" : "Đổi\nTab 2", GameScr.xC - 19, GameScr.yC + 5 + mGraphics.addYWhenOpenKeyBoard, mGraphics.HCENTER | mGraphics.VCENTER);

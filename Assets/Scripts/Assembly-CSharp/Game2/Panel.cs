@@ -1034,6 +1034,10 @@ namespace Game2
 
         public const int color_item_black = 2039326;
 
+        private const int MaxEquipmentUpgradeLevel = 10;
+
+        private const long EquipmentBorderLoopDurationMs = 3000L;
+
         // Fixed visual tiers for equipment enhancement +1 through +10.
         // +1 deliberately keeps the normal cell background and only animates its border.
         private static readonly int[] equipmentUpgradeCellColors = new int[10]
@@ -1044,8 +1048,20 @@ namespace Game2
 
         private static readonly int[] equipmentUpgradeBorderColors = new int[10]
         {
-            0xB8BEC6, 0x83EB9A, 0x71CEFF, 0x68F4EE, 0xC0A4FF,
-            0xFFA2E6, 0xFFF08B, 0xFFD077, 0xFF9F72, 0xFF777D
+            0xF2F4FF, 0x42FF85, 0x39A9FF, 0x24F5E8, 0xB675FF,
+            0xFF5BDB, 0xFF3B3B, 0xFF8A24, 0xFFE23B, 0xFFFFFF
+        };
+
+        private static readonly int[] equipmentUpgradeSparkleColors = new int[10]
+        {
+            0xFFFFFF, 0xC3FFD5, 0xBDE5FF, 0xB3FFF8, 0xE3CCFF,
+            0xFFC7F1, 0xFFB6B6, 0xFFD0A3, 0xFFF4A3, 0xFFFFFF
+        };
+
+        private static readonly int[] equipmentMaxUpgradeColors = new int[8]
+        {
+            0xFF4D4D, 0xFF9F43, 0xFFE85C, 0x72E66E,
+            0x4DE8E8, 0x5794FF, 0xA86CFF, 0xFF66D9
         };
 
         private Image imgo_0;
@@ -1215,16 +1231,20 @@ namespace Game2
 
         private void paintEffectItem(mGraphics g, Item item, int x, int y)
         {
-            paintEffectItem(g, item, x, y, 0, 0);
+            paintEffectItem(g, item, x, y, 0, 0, includeUpgradeLevel: true);
         }
 
         private void paintEffectItem(mGraphics g, Item item, int x, int y, int cellWidth, int cellHeight)
         {
+            paintEffectItem(g, item, x, y, cellWidth, cellHeight, includeUpgradeLevel: true);
+        }
+
+        private void paintEffectItem(mGraphics g, Item item, int x, int y, int cellWidth, int cellHeight,
+            bool includeUpgradeLevel, bool includeCrystalStars = true)
+        {
             try
             {
                 if (!ModFunc.isEffectInven) return;
-                Image[] array = null;
-                Image[] array2 = null;
                 if (item == null || item.itemOption == null)
                 {
                     return;
@@ -1232,8 +1252,15 @@ namespace Game2
                 ItemOption[] itemOption = item.itemOption;
                 foreach (ItemOption itemOption2 in itemOption)
                 {
-                    if (itemOption2 != null && (itemOption2.optionTemplate.id == 102 || itemOption2.optionTemplate.id == 72 || itemOption2.optionTemplate.id == 251 || (itemOption2.optionTemplate.id >= 42 && itemOption2.optionTemplate.id <= 46)))
+                    if (itemOption2 == null || itemOption2.optionTemplate == null) continue;
+                    int optionId = itemOption2.optionTemplate.id;
+                    bool paintsCellEffect = includeCrystalStars && optionId == Item.OPT_STARSLOT
+                        || includeUpgradeLevel && optionId == Item.OPT_LVITEM
+                        || optionId == 251 || optionId >= 42 && optionId <= 46;
+                    if (paintsCellEffect)
                     {
+                        Image[] array = null;
+                        Image[] array2 = null;
                         switch (itemOption2.param)
                         {
                             case 1:
@@ -9773,16 +9800,18 @@ paintScrollArrow(g);
             paintScrollArrow(g);
         }
 
-        private void paintInventoryGridEffect(mGraphics g, Item item, int x, int y, int width, int height)
+        public void paintInventoryGridEffect(mGraphics g, Item item, int x, int y, int width, int height,
+            bool includeUpgradeLevel = true, bool includeCrystalStars = true)
         {
             if (!ModFunc.isEffectInven || item == null)
             {
                 return;
             }
-            paintEffectItem(g, item, x, y, width, height);
+            paintEffectItem(g, item, x, y, width, height, includeUpgradeLevel, includeCrystalStars);
         }
 
-        private void paintInventoryGridItemMarkers(mGraphics g, Item item, int x, int y, int width, int height)
+        public void paintInventoryGridItemMarkers(mGraphics g, Item item, int x, int y, int width, int height,
+            bool paintCrystalSlotBorder = true)
         {
             if (item == null || item.itemOption == null)
             {
@@ -9801,7 +9830,8 @@ paintScrollArrow(g);
                 ItemOption option = item.itemOption[i];
                 if (option != null && option.optionTemplate != null)
                 {
-                    paintOptSlotItem(g, option.optionTemplate.id, option.param, x, y, width, height);
+                    if (paintCrystalSlotBorder || option.optionTemplate.id != Item.OPT_STARSLOT)
+                        paintOptSlotItem(g, option.optionTemplate.id, option.param, x, y, width, height);
                 }
             }
         }
@@ -16333,7 +16363,7 @@ else
             }
         }
 
-        private static int getEquipmentCellColor(Item item, bool isSelected, int defaultColor = 9993045)
+        public static int getEquipmentCellColor(Item item, bool isSelected, int defaultColor = 9993045)
         {
             int upgradeLevel = getEquipmentUpgradeLevel(item);
             return (upgradeLevel <= 1) ? defaultColor : equipmentUpgradeCellColors[upgradeLevel - 1];
@@ -16350,67 +16380,143 @@ else
                 ItemOption option = item.itemOption[i];
                 if (option != null && option.optionTemplate != null && option.optionTemplate.id == 72 && option.param > 0)
                 {
-                    return System.Math.Min(option.param, 10);
+                    return System.Math.Min(option.param, MaxEquipmentUpgradeLevel);
                 }
             }
             return 0;
         }
 
-        private static void paintEquipmentCellFrame(mGraphics g, Item item, int x, int y, int width, int height, bool isSelected)
+        public static void paintEquipmentCellFrame(mGraphics g, Item item, int x, int y, int width, int height,
+            bool isSelected, int inset = 0)
         {
             int upgradeLevel = getEquipmentUpgradeLevel(item);
+            int frameX = x;
+            int frameY = y;
+            int frameWidth = width;
+            int frameHeight = height;
+            if (inset > 0 && upgradeLevel > 0)
+            {
+                const int helperExpansion = 2;
+                frameX = x + inset + helperExpansion;
+                frameY = y + inset + helperExpansion;
+                frameWidth = System.Math.Max(1, width - (inset + helperExpansion) * 2);
+                frameHeight = System.Math.Max(1, height - (inset + helperExpansion) * 2);
+            }
             if (upgradeLevel > 0)
             {
-                int borderColor = equipmentUpgradeBorderColors[upgradeLevel - 1];
-                g.setColor(borderColor, 0.55f);
-                g.drawRect(x - 1, y - 1, width + 1, height + 1);
-                int perimeter = (width + height) * 2;
-                int sparkleCount = 2 + (upgradeLevel + 1) / 2;
-                int speed = 1 + upgradeLevel / 3;
-                for (int i = 0; i < sparkleCount; i++)
-                {
-                    int point = (GameCanvas.gameTick * speed + i * perimeter / sparkleCount) % perimeter;
-                    int px;
-                    int py;
-                    if (point < width)
-                    {
-                        px = x + point;
-                        py = y;
-                    }
-                    else if (point < width + height)
-                    {
-                        px = x + width;
-                        py = y + point - width;
-                    }
-                    else if (point < width * 2 + height)
-                    {
-                        px = x + width - (point - width - height);
-                        py = y + height;
-                    }
-                    else
-                    {
-                        px = x;
-                        py = y + height - (point - width * 2 - height);
-                    }
-                    g.setColor(borderColor);
-                    g.fillRect(px - 1, py - 1, 2, 2);
-                }
-                if (upgradeLevel >= 7)
-                {
-                    g.setColor(borderColor, 0.35f);
-                    g.drawRect(x - 2, y - 2, width + 3, height + 3);
-                }
+                if (upgradeLevel >= MaxEquipmentUpgradeLevel)
+                    paintRainbowEquipmentBorder(g, frameX, frameY, frameWidth, frameHeight);
+                else
+                    paintAnimatedEquipmentBorder(g, frameX, frameY, frameWidth, frameHeight,
+                        equipmentUpgradeBorderColors[upgradeLevel - 1], upgradeLevel);
             }
             else
             {
                 g.setColor(16777215, 0.5f);
-                g.drawRect(x - 1, y - 1, width + 1, height + 1);
+                g.drawRect(frameX - 1, frameY - 1, frameWidth + 1, frameHeight + 1);
             }
             if (isSelected)
             {
                 g.setColor(16777215, 0.85f);
-                g.drawRect(x - 2, y - 2, width + 3, height + 3);
+                g.drawRect(frameX - 2, frameY - 2, frameWidth + 3, frameHeight + 3);
             }
+        }
+
+        private static void paintAnimatedEquipmentBorder(mGraphics g, int x, int y, int width, int height,
+            int borderColor, int upgradeLevel)
+        {
+            g.setColor(borderColor, 0.78f);
+            g.drawRect(x - 2, y - 2, width + 3, height + 3);
+            g.setColor(borderColor, 1f);
+            g.drawRect(x - 1, y - 1, width + 1, height + 1);
+            int pathX = x - 1;
+            int pathY = y - 1;
+            int pathWidth = width + 2;
+            int pathHeight = height + 2;
+            int perimeter = System.Math.Max(1, (pathWidth + pathHeight) * 2);
+            int sparkleCount = 2 + (upgradeLevel + 1) / 2;
+            int basePoint = getEquipmentBorderAnimationPoint(perimeter);
+            int trailDistance = System.Math.Max(2, perimeter / 32);
+            int sparkleColor = equipmentUpgradeSparkleColors[upgradeLevel - 1];
+            for (int i = 0; i < sparkleCount; i++)
+            {
+                int point = (basePoint + i * perimeter / sparkleCount) % perimeter;
+                int headHaloPoint = point;
+                paintEquipmentBorderPoint(g, pathX, pathY, pathWidth, pathHeight,
+                    headHaloPoint, borderColor, 4, 0.38f);
+                paintEquipmentBorderPoint(g, pathX, pathY, pathWidth, pathHeight,
+                    point, sparkleColor, 3, 1f);
+                int trailPoint = point - trailDistance;
+                paintEquipmentBorderPoint(g, pathX, pathY, pathWidth, pathHeight,
+                    trailPoint, sparkleColor, 2, 0.68f);
+            }
+        }
+
+        private static void paintRainbowEquipmentBorder(mGraphics g, int x, int y, int width, int height)
+        {
+            int paletteLength = equipmentMaxUpgradeColors.Length;
+            long elapsed = mSystem.currentTimeMillis() % EquipmentBorderLoopDurationMs;
+            int tickColor = (int)(elapsed * paletteLength / EquipmentBorderLoopDurationMs);
+            g.setColor(equipmentMaxUpgradeColors[tickColor % paletteLength], 0.82f);
+            g.drawRect(x - 2, y - 2, width + 3, height + 3);
+            g.setColor(equipmentMaxUpgradeColors[(tickColor + 2) % paletteLength], 1f);
+            g.drawRect(x - 1, y - 1, width + 1, height + 1);
+            int pathX = x - 1;
+            int pathY = y - 1;
+            int pathWidth = width + 2;
+            int pathHeight = height + 2;
+            int perimeter = System.Math.Max(1, (pathWidth + pathHeight) * 2);
+            int basePoint = getEquipmentBorderAnimationPoint(perimeter);
+            int sparkleCount = 8;
+            for (int i = 0; i < sparkleCount; i++)
+            {
+                int point = (basePoint + i * perimeter / sparkleCount) % perimeter;
+                int color = equipmentMaxUpgradeColors[(tickColor + i) % paletteLength];
+                paintEquipmentBorderPoint(g, pathX, pathY, pathWidth, pathHeight,
+                    point, color, size: 3, alpha: 1f);
+                int trailPoint = point - 5;
+                int trailColor = equipmentMaxUpgradeColors[(tickColor + i - 1 + paletteLength) % paletteLength];
+                paintEquipmentBorderPoint(g, pathX, pathY, pathWidth, pathHeight,
+                    trailPoint, trailColor, size: 2, alpha: 0.72f);
+            }
+        }
+
+        private static int getEquipmentBorderAnimationPoint(int perimeter)
+        {
+            long elapsed = mSystem.currentTimeMillis() % EquipmentBorderLoopDurationMs;
+            return (int)(elapsed * perimeter / EquipmentBorderLoopDurationMs);
+        }
+
+        private static void paintEquipmentBorderPoint(mGraphics g, int x, int y, int width, int height,
+            int point, int color, int size, float alpha)
+        {
+            int perimeter = System.Math.Max(1, (width + height) * 2);
+            point %= perimeter;
+            if (point < 0) point += perimeter;
+            int px;
+            int py;
+            if (point < width)
+            {
+                px = x + point;
+                py = y;
+            }
+            else if (point < width + height)
+            {
+                px = x + width;
+                py = y + point - width;
+            }
+            else if (point < width * 2 + height)
+            {
+                px = x + width - (point - width - height);
+                py = y + height;
+            }
+            else
+            {
+                px = x;
+                py = y + height - (point - width * 2 - height);
+            }
+            g.setColor(color, alpha);
+            g.fillRect(px - size / 2, py - size / 2, size, size);
         }
 
         public static mFont GetFont(int color)

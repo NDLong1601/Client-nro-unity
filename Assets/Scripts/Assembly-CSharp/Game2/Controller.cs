@@ -2750,13 +2750,18 @@ namespace Game2
 						catch (Exception)
 						{
 						}
-						GameCanvas.panel.setTypeBox();
-						GameCanvas.panel.isBoxClan = isBoxClan;
-						if (isBoxClan)
+						bool handledByCustomClan = isBoxClan
+							&& Game2.UI.CustomMenu.CustomMenuScr.TryConsumeClanStorageOpen();
+						if (!handledByCustomClan)
 						{
-							GameCanvas.panel.setClanBoxTitle();
+							GameCanvas.panel.setTypeBox();
+							GameCanvas.panel.isBoxClan = isBoxClan;
+							if (isBoxClan)
+							{
+								GameCanvas.panel.setClanBoxTitle();
+							}
+							GameCanvas.panel.show();
 						}
-						GameCanvas.panel.show();
 					}
 					if (b18 == 2)
 					{
@@ -4811,6 +4816,11 @@ namespace Game2
 				clanMessage.id = msg.reader().readInt();
 				clanMessage.playerId = msg.reader().readInt();
 				clanMessage.playerName = msg.reader().readUTF();
+				Char currentPlayer = Char.myCharz();
+				bool isOwnClanMessage = currentPlayer != null
+					&& (clanMessage.playerId == currentPlayer.charID
+						|| (!string.IsNullOrEmpty(currentPlayer.cName)
+							&& string.Equals(clanMessage.playerName, currentPlayer.cName, StringComparison.OrdinalIgnoreCase)));
 				clanMessage.role = msg.reader().readByte();
 				clanMessage.time = msg.reader().readInt() + 1000000000;
 				bool flag = false;
@@ -4832,7 +4842,7 @@ namespace Game2
 						clanMessage.chat[0] = text;
 					}
 					clanMessage.color = msg.reader().readByte();
-					if (b == 4 && clanMessage.playerId != Char.myCharz().charID)
+					if (b == 4 && !isOwnClanMessage)
 					{
 						clanMessage.option = new string[1] { "Giúp tưới" };
 					}
@@ -4846,7 +4856,7 @@ namespace Game2
 					{
 						GameScr.isNewClanMessage = true;
 					}
-					if (clanMessage.playerId != Char.myCharz().charID)
+					if (!isOwnClanMessage)
 					{
 						if (clanMessage.recieve < clanMessage.maxCap)
 						{

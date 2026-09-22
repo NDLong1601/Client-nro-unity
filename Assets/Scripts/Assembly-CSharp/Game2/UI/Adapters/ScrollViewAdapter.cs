@@ -46,6 +46,27 @@ namespace Game2.UI.Adapters
             _scroll.updatecm();
         }
 
+        public bool ScrollByWheel(int wheelDelta)
+        {
+            if (wheelDelta == 0 || ItemCount <= 0 || _scroll.cmyLim <= 0)
+            {
+                return false;
+            }
+
+            int step = System.Math.Max(12, System.Math.Min(24, ItemSize));
+            int target = _scroll.cmtoY - wheelDelta * step;
+            target = System.Math.Max(0, System.Math.Min(_scroll.cmyLim, target));
+            if (target == _scroll.cmtoY)
+            {
+                return false;
+            }
+
+            // Only move the target. Scroll.updatecm() eases the visible position
+            // toward it so a wheel notch does not snap the list abruptly.
+            _scroll.cmtoY = target;
+            return true;
+        }
+
         public void ScrollToIndex(int index)
         {
             if (ItemCount <= 0) return;
