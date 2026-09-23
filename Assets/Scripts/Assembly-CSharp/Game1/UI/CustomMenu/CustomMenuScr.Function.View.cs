@@ -28,7 +28,6 @@ namespace Game1.UI.CustomMenu
                 PaintFunctionActivity(g);
             else if (_functionView == FunctionViewWorldChat) PaintFunctionWorldChat(g);
             else if (_functionView == FunctionViewToggles) PaintFunctionToggles(g);
-            else if (_functionView == FunctionViewDisciple) PaintFunctionDisciple(g);
             else if (_functionView == FunctionViewAccount) PaintFunctionAccount(g);
             else if (_functionView == FunctionViewSettings) PaintFunctionSettings(g);
             else if (_functionView == FunctionViewHistory) PaintFunctionHistory(g);
@@ -350,50 +349,6 @@ namespace Game1.UI.CustomMenu
                 UiProgressBar.PaintFlat(graphics, new UiRect(row.X + 5, row.Bottom - 9, row.Width - 10, 6),
                     progress, target, 0xD8DFC4, state == 1 ? 0x4DBD18 : 0x2EA52A);
             });
-        }
-
-        private void PaintFunctionDisciple(mGraphics g)
-        {
-            PaintClanSurface(g, _rightBodyRect, 0xDED1BB);
-            if (Char.myCharz() == null || !Char.myCharz().havePet)
-            {
-                mFont.tahoma_7_grey.drawString(g, "Bạn chưa có đệ tử.", _rightBodyRect.X + _rightBodyRect.Width / 2,
-                    _rightBodyRect.Y + 20, mFont.CENTER);
-                return;
-            }
-            Char pet = Char.myPetz();
-            if (pet == null)
-            {
-                mFont.tahoma_7_grey.drawString(g, "Đang tải thông tin đệ tử...", _rightBodyRect.X + _rightBodyRect.Width / 2,
-                    _rightBodyRect.Y + 20, mFont.CENTER);
-                return;
-            }
-
-            UiRect infoRect = new UiRect(_rightBodyRect.X + 4, _rightBodyRect.Y + 4, _rightBodyRect.Width - 8, 88);
-            UiMenuTheme.PaintCard(g, infoRect);
-
-            mFont.tahoma_7b_dark.drawString(g, "Đệ tử: " + (pet.cName ?? "Đệ tử"), infoRect.X + 6, infoRect.Y + 4, mFont.LEFT);
-            mFont.tahoma_7b_dark.drawString(g, "Sức mạnh: " + NinjaUtil.getMoneys(pet.cPower), infoRect.X + 6, infoRect.Y + 18, mFont.LEFT);
-            mFont.tahoma_7b_dark.drawString(g, "Tiềm năng: " + NinjaUtil.getMoneys(pet.cTiemNang), infoRect.X + 6, infoRect.Y + 32, mFont.LEFT);
-            mFont.tahoma_7b_dark.drawString(g, "HP: " + pet.cHP + "/" + pet.cHPFull, infoRect.X + 6, infoRect.Y + 46, mFont.LEFT);
-            mFont.tahoma_7b_dark.drawString(g, "KI: " + pet.cMP + "/" + pet.cMPFull, infoRect.X + 6, infoRect.Y + 60, mFont.LEFT);
-            mFont.tahoma_7b_dark.drawString(g, "Sức đánh: " + pet.cDamFull + "  Giáp: " + pet.cDefull + "  Chí mạng: " + pet.cCriticalFull + "%",
-                infoRect.X + 6, infoRect.Y + 74, mFont.LEFT);
-
-            string[] statuses = new string[] { "Đi theo", "Bảo vệ", "Tấn công", "Về nhà", "Hợp thể" };
-            int btnW = (_rightBodyRect.Width - 12 - 8) / 3;
-            int btnH = 22;
-            int currentStatus = pet.petStatus;
-            for (int i = 0; i < statuses.Length; i++)
-            {
-                int col = i % 3;
-                int row = i / 3;
-                int bx = _rightBodyRect.X + 4 + col * (btnW + 4);
-                int by = infoRect.Bottom + 6 + row * (btnH + 4);
-                UiRect btnRect = new UiRect(bx, by, btnW, btnH);
-                bool isActive = i == currentStatus;
-                PaintFunctionMenuButton(g, btnRect, statuses[i], isActive, false);
-            }
         }
 
         private void PaintFunctionAccount(mGraphics g)

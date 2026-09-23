@@ -1,4 +1,4 @@
-Add-Type -AssemblyName System.Drawing
+﻿Add-Type -AssemblyName System.Drawing
 
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $artifactDir = Join-Path $projectRoot 'tools\tests\artifacts\ui-component-phase3'

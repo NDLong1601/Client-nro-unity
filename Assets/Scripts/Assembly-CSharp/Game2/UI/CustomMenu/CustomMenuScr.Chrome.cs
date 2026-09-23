@@ -53,6 +53,14 @@ namespace Game2.UI.CustomMenu
             {
                 PaintFunctionTabContent(g);
             }
+            else if (_selectedMainTab == 5)
+            {
+                PaintDiscipleTabContent(g);
+            }
+            else if (_selectedMainTab == 6)
+            {
+                PaintFriendTabContent(g);
+            }
             else
             {
                 PaintEmptyTabContent(g);
@@ -68,11 +76,10 @@ namespace Game2.UI.CustomMenu
             g.setColor(0x3E3A34);
             g.drawRect(_tabBarRect.X, _tabBarRect.Y, _tabBarRect.Width, _tabBarRect.Height);
 
-            for (int i = 0; i < MainTabCount; i++)
+            _mainTabScrollAdapter.Paint(g, (graphics, i, bounds) =>
             {
-                int ty = _tabBarRect.Y + i * _tabBarRect.Height / MainTabCount;
-                int nextY = _tabBarRect.Y + (i + 1) * _tabBarRect.Height / MainTabCount;
-                int tabH = nextY - ty;
+                int ty = bounds.Y;
+                int tabH = bounds.Height;
                 bool isSelected = (i == _selectedMainTab);
                 if (isSelected)
                 {
@@ -89,9 +96,15 @@ namespace Game2.UI.CustomMenu
                 Image icon = _mainTabIcons != null && i < _mainTabIcons.Length ? _mainTabIcons[i] : null;
                 if (icon != null)
                 {
-                    g.drawImage(icon, _tabBarRect.X + _tabBarRect.Width / 2, ty + tabH / 2, mGraphics.HCENTER | mGraphics.VCENTER);
+                    int sourceW = mGraphics.getImageWidth(icon);
+                    int sourceH = mGraphics.getImageHeight(icon);
+                    int width = System.Math.Min(42, 38 * sourceW / System.Math.Max(1, sourceH));
+                    int height = System.Math.Min(38, 42 * sourceH / System.Math.Max(1, sourceW));
+                    g.drawImageScaleInClip(icon, _tabBarRect.X + (_tabBarRect.Width - width) / 2,
+                        ty + (tabH - height) / 2, width, height);
                 }
-            }
+            });
+            _mainTabScrollAdapter.PaintScrollbar(g, _tabBarRect);
         }
 
         private void PaintFooterBar(mGraphics g)

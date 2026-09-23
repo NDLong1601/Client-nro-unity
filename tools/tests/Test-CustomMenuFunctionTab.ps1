@@ -34,8 +34,8 @@ foreach ($variant in $variants) {
     $menu = (Get-ChildItem -LiteralPath $menuDir -Filter 'CustomMenuScr*.cs' -File |
         Sort-Object Name | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8 }) -join "`n"
 
-    Assert-Contains $menu 'FunctionNames\s*=\s*new string\[\]' "$variant function tab must define its twelve fixed menu entries."
-    foreach ($label in @('Thông báo', 'Đổi khu', 'Đệ tử', 'Đổi cờ', 'Năng động', 'Sổ sưu tầm', 'Chat thế giới', 'Chức năng', 'Tài khoản', 'Cấu hình', 'Lịch sử', 'Đổi tài khoản')) {
+    Assert-Contains $menu 'FunctionNames\s*=\s*new string\[\]' "$variant function tab must define its menu entries."
+    foreach ($label in @('Thông báo', 'Đổi khu', 'Đổi cờ', 'Năng động', 'Sổ sưu tầm', 'Chat thế giới', 'Chức năng', 'Tài khoản', 'Cấu hình', 'Lịch sử', 'Đổi tài khoản')) {
         Assert-Contains $menu ([regex]::Escape('"' + $label + '"')) "$variant function tab is missing: $label"
     }
 

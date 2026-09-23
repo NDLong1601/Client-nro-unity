@@ -35,7 +35,7 @@ namespace Game2.UI.CustomMenu
                 MoveVerticalSelection(1);
                 return true;
             }
-            if ((_selectedMainTab == 1 || _selectedMainTab == 2 || _selectedMainTab == 3 || _selectedMainTab == 4)
+            if ((_selectedMainTab == 1 || _selectedMainTab == 2 || _selectedMainTab == 3 || _selectedMainTab == 4 || _selectedMainTab == 5 || _selectedMainTab == 6)
                 && GameCanvas.keyPressed[Main.isPC ? 25 : 5])
             {
                 GameCanvas.keyPressed[25] = false;
@@ -48,6 +48,8 @@ namespace Game2.UI.CustomMenu
                 else if (_selectedMainTab == 1) HandleInventoryConfirm();
                 else if (_selectedMainTab == 3) HandleClanConfirm();
                 else if (_selectedMainTab == 4) HandleFunctionConfirm();
+                else if (_selectedMainTab == 5) HandleDiscipleConfirm();
+                else if (_selectedMainTab == 6) HandleFriendConfirm();
                 else HandleSkillConfirm();
                 return true;
             }
@@ -90,6 +92,14 @@ namespace Game2.UI.CustomMenu
                 {
                     _clanFocusArea = ClanFocusFunctions;
                     _selectedClanFunction = GetClanFunctionForView(_selectedClanView);
+                }
+                else if (_selectedMainTab == 5)
+                {
+                    _discipleFocusArea = 0;
+                }
+                else if (_selectedMainTab == 6)
+                {
+                    _friendFocusArea = FriendFocusList;
                 }
                 SoundMn.gI().panelClick();
                 return;
@@ -212,6 +222,18 @@ namespace Game2.UI.CustomMenu
                 return;
             }
 
+            if (_selectedMainTab == 5)
+            {
+                MoveDiscipleHorizontalFocus(direction);
+                return;
+            }
+
+            if (_selectedMainTab == 6)
+            {
+                MoveFriendHorizontalFocus(direction);
+                return;
+            }
+
             if (_selectedMainTab != 0)
             {
                 if (direction < 0)
@@ -256,7 +278,9 @@ namespace Game2.UI.CustomMenu
                     _clanChatFocused = false;
                     _clanChatField?.setFocus(false);
                 }
+                if (_selectedMainTab == 6) LeaveFriendTab();
                 _selectedMainTab = (_selectedMainTab + direction + MainTabCount) % MainTabCount;
+                _mainTabScrollAdapter.ScrollToIndex(_selectedMainTab);
                 if (_selectedMainTab == 0) _selectedSubTab = 0;
                 _showSkillKeyPicker = false;
                 _skillFocusArea = SkillFocusList;
@@ -264,6 +288,8 @@ namespace Game2.UI.CustomMenu
                 _selectedIntrinsicAction = -1;
                 if (_selectedMainTab == 3) EnterClanTab();
                 if (_selectedMainTab == 4) EnterFunctionTab();
+                if (_selectedMainTab == 5) EnterDiscipleTab();
+                if (_selectedMainTab == 6) EnterFriendTab();
                 RefreshKeyboardPage();
                 SoundMn.gI().panelClick();
                 return;
@@ -314,6 +340,18 @@ namespace Game2.UI.CustomMenu
             if (_selectedMainTab == 4)
             {
                 MoveFunctionVerticalSelection(direction);
+                return;
+            }
+
+            if (_selectedMainTab == 5)
+            {
+                MoveDiscipleVerticalSelection(direction);
+                return;
+            }
+
+            if (_selectedMainTab == 6)
+            {
+                MoveFriendVerticalSelection(direction);
                 return;
             }
 

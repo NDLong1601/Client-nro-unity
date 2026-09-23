@@ -265,7 +265,7 @@ namespace Game1.UI.CustomMenu
             int start = GetInventoryTabStart(_selectedInventoryBagTab, bag.Length);
             int count = GetInventoryTabItemCount(_selectedInventoryBagTab, bag.Length);
             if (_rightScrollAdapter == null) return;
-            const int iconWidth = 36;
+            const int iconWidth = 29;
 
             _rightScrollAdapter.Paint(g, (graphics, localIndex, rowRect) =>
             {
@@ -286,13 +286,13 @@ namespace Game1.UI.CustomMenu
                 UiRect iconRect = new UiRect(rowVisualRect.X, rowVisualRect.Y, iconWidth, rowVisualRect.Height);
                 UiItemSlot.Paint(graphics, item, iconRect, selected, 0xB7A489, InventoryEquipmentBorderInset);
 
-                int textX = rowVisualRect.X + iconWidth + 7;
-                int textWidth = rowVisualRect.Width - iconWidth - 11;
+                int textX = rowVisualRect.X + iconWidth + 5;
+                int textWidth = rowVisualRect.Width - iconWidth - 9;
                 string name = item.template.name + GetUpgradeSuffix(item);
-                mFont.tahoma_7b_dark.drawString(graphics, TruncateString(mFont.tahoma_7b_dark, name, textWidth), textX, rowVisualRect.Y + 5, mFont.LEFT);
+                mFont.tahoma_7b_dark.drawString(graphics, TruncateString(mFont.tahoma_7b_dark, name, textWidth), textX, rowVisualRect.Y + 3, mFont.LEFT);
                 string summary = GetItemOptionSummary(item);
                 if (!string.IsNullOrEmpty(summary))
-                    mFont.tahoma_7_blue.drawString(graphics, TruncateString(mFont.tahoma_7_blue, summary, textWidth), textX, rowVisualRect.Y + 20, mFont.LEFT);
+                    mFont.tahoma_7_blue.drawString(graphics, TruncateString(mFont.tahoma_7_blue, summary, textWidth), textX, rowVisualRect.Y + 17, mFont.LEFT);
                 if (selected) UiItemSlot.PaintFocusFrame(graphics, rowVisualRect);
             });
         }

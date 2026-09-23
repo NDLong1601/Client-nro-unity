@@ -161,39 +161,6 @@ namespace Game1.UI.CustomMenu
                         }
                     }
                 }
-                else if (_functionView == FunctionViewDisciple)
-                {
-                    if (Char.myCharz() != null && Char.myCharz().havePet && Char.myPetz() != null)
-                    {
-                        int infoH = 88;
-                        int btnW = (_rightBodyRect.Width - 12 - 8) / 3;
-                        int btnH = 22;
-                        int startY = _rightBodyRect.Y + 4 + infoH + 6;
-                        for (int i = 0; i < 5; i++)
-                        {
-                            int col = i % 3;
-                            int row = i / 3;
-                            int bx = _rightBodyRect.X + 4 + col * (btnW + 4);
-                            int by = startY + row * (btnH + 4);
-                            if (GameCanvas.isPointer(bx, by, btnW, btnH))
-                            {
-                                GameCanvas.clearAllPointerEvent();
-                                _functionFocusArea = FunctionFocusContent;
-                                if (i == 4)
-                                {
-                                    GameCanvas.startYesNoDlg(mResources.sure_fusion, new Command(mResources.YES, 888351), new Command(mResources.NO, 2001));
-                                }
-                                else
-                                {
-                                    Service.gI().petStatus((sbyte)i);
-                                    Char.myPetz().petStatus = (sbyte)i;
-                                }
-                                SoundMn.gI().panelClick();
-                                return true;
-                            }
-                        }
-                    }
-                }
                 else if (_functionView == FunctionViewAccount)
                 {
                     int cardW = _rightBodyRect.Width - 16;
@@ -207,7 +174,7 @@ namespace Game1.UI.CustomMenu
                             GameCanvas.clearAllPointerEvent();
                             _functionFocusArea = FunctionFocusContent;
                             if (i == 0) { GameCanvas.panel.setTypeAccount(); GameCanvas.panel.show(); }
-                            else if (i == 1) { GameCanvas.panel.setTypeFriend(); GameCanvas.panel.show(); }
+                            else if (i == 1) SwitchToFriendTab();
                             else if (i == 2) { GameCanvas.panel.setTypeEnemy(); GameCanvas.panel.show(); }
                             else if (i == 3) { GameCanvas.panel.setTypeMessage(); GameCanvas.panel.show(); }
                             else if (i == 4) { GameCanvas.panel.setTypeAccount(); GameCanvas.panel.show(); }
@@ -339,11 +306,6 @@ namespace Game1.UI.CustomMenu
                 _functionView = FunctionViewZones;
                 ModFunc.GI().userOpenZones = false;
                 Service.gI().openUIZone();
-            }
-            else if (index == FunctionDisciple)
-            {
-                _functionView = FunctionViewDisciple;
-                Service.gI().petInfo();
             }
             else if (index == FunctionChangeFlag)
             {
@@ -491,7 +453,13 @@ namespace Game1.UI.CustomMenu
         {
             if (_functionFocusArea == FunctionFocusMenu)
             {
-                if (direction < 0) _keyboardFocus = KeyboardFocusMainTabs;
+                if (direction < 0)
+                {
+                    if (_selectedFunction >= 0 && _selectedFunction % 2 == 1) _selectedFunction--;
+                    else _keyboardFocus = KeyboardFocusMainTabs;
+                }
+                else if (_selectedFunction >= 0 && _selectedFunction % 2 == 0
+                    && _selectedFunction + 1 < FunctionNames.Length) _selectedFunction++;
                 else _functionFocusArea = FunctionFocusContent;
                 SoundMn.gI().panelClick();
                 return;
@@ -515,14 +483,14 @@ namespace Game1.UI.CustomMenu
                     SoundMn.gI().panelClick();
                     return;
                 }
-                _selectedFunction = (_selectedFunction + direction * 2 + FunctionNames.Length) % FunctionNames.Length;
+                int candidate = (_selectedFunction + direction * 2 + 12) % 12;
+                _selectedFunction = candidate < FunctionNames.Length ? candidate : (direction > 0 ? 1 : 9);
                 SoundMn.gI().panelClick();
                 return;
             }
             int count = _functionView == FunctionViewActivityOverview ? 3
                 : _functionView == FunctionViewZones ? (GameScr.gI().zones != null ? GameScr.gI().zones.Length : 0)
                 : _functionView == FunctionViewToggles ? _functionToggleRects.Length
-                : _functionView == FunctionViewDisciple ? 5
                 : _functionView == FunctionViewAccount ? 5
                 : _functionView == FunctionViewSettings ? 4
                 : _functionView == FunctionViewChangeAccount ? 2
@@ -561,19 +529,10 @@ namespace Game1.UI.CustomMenu
                 || _functionView == FunctionViewActivityWeekly || _functionView == FunctionViewActivitySources)
                 ActivateFunctionActivityAction(_selectedFunctionRow);
             else if (_functionView == FunctionViewToggles) ToggleFunctionSetting(_selectedFunctionRow);
-            else if (_functionView == FunctionViewDisciple)
-            {
-                if (Char.myCharz() != null && Char.myCharz().havePet && Char.myPetz() != null && _selectedFunctionRow >= 0 && _selectedFunctionRow < 5)
-                {
-                    if (_selectedFunctionRow == 4) GameCanvas.startYesNoDlg(mResources.sure_fusion, new Command(mResources.YES, 888351), new Command(mResources.NO, 2001));
-                    else { Service.gI().petStatus((sbyte)_selectedFunctionRow); Char.myPetz().petStatus = (sbyte)_selectedFunctionRow; }
-                    SoundMn.gI().panelClick();
-                }
-            }
             else if (_functionView == FunctionViewAccount)
             {
                 if (_selectedFunctionRow == 0) { GameCanvas.panel.setTypeAccount(); GameCanvas.panel.show(); }
-                else if (_selectedFunctionRow == 1) { GameCanvas.panel.setTypeFriend(); GameCanvas.panel.show(); }
+                else if (_selectedFunctionRow == 1) SwitchToFriendTab();
                 else if (_selectedFunctionRow == 2) { GameCanvas.panel.setTypeEnemy(); GameCanvas.panel.show(); }
                 else if (_selectedFunctionRow == 3) { GameCanvas.panel.setTypeMessage(); GameCanvas.panel.show(); }
                 else if (_selectedFunctionRow == 4) { GameCanvas.panel.setTypeAccount(); GameCanvas.panel.show(); }

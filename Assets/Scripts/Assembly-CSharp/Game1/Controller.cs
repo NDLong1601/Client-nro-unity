@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Game1.Assets.src.e;
 using Game1.Assets.src.f;
 using Game1.Assets.src.g;
@@ -1054,8 +1054,11 @@ namespace Game1
 							GameCanvas.panel.vFriend.addElement(infoItem2);
 						}
 						FriendSocialProtocol.TryReadCapabilityTail(msg.reader(), friendSocialState);
-						GameCanvas.panel.setTypeFriend();
-						GameCanvas.panel.show();
+						if (!Game1.UI.CustomMenu.CustomMenuScr.ConsumeFriendListResponseForCustomMenu())
+						{
+							GameCanvas.panel.setTypeFriend();
+							GameCanvas.panel.show();
+						}
 					}
 					if (b46 == 3)
 					{
@@ -2566,7 +2569,7 @@ namespace Game1
 					Char.myCharz().expForOneAdd = msg.reader().readShort();
 					Char.myCharz().cDefGoc = msg.reader().readShort();
 					Char.myCharz().cCriticalGoc = msg.reader().readByte();
-					
+
 					InfoDlg.hide();
 					break;
 				case -41:

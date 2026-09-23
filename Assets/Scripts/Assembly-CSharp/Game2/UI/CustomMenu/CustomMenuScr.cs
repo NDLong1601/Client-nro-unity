@@ -11,6 +11,7 @@ namespace Game2.UI.CustomMenu
     {
         private static CustomMenuScr _instance;
         private static bool _isOpen;
+        private static long _friendListRequestUtcTicks;
         private static readonly UiActionButtonStyle ClanMessageOptionButtonStyle = new UiActionButtonStyle
         {
             NormalFill = 0xE99A00,
@@ -26,8 +27,21 @@ namespace Game2.UI.CustomMenu
             get { return _isOpen; }
         }
 
+        public static bool IsFriendTabOpen
+        {
+            get { return _isOpen && _instance != null && _instance._selectedMainTab == 6; }
+        }
+
+        public static bool ConsumeFriendListResponseForCustomMenu()
+        {
+            bool pending = _friendListRequestUtcTicks > 0
+                && DateTime.UtcNow.Ticks - _friendListRequestUtcTicks < TimeSpan.TicksPerSecond * 10;
+            _friendListRequestUtcTicks = 0;
+            return IsFriendTabOpen || pending;
+        }
+
         // Tabs state
-        private int _selectedMainTab = 0; // 0: Nhiệm vụ, 1: Hành trang, 2: Kỹ năng, 3: Bang hội, 4: Chức năng
+        private int _selectedMainTab = 0; // 0: Nhiệm vụ, 1: Hành trang, 2: Kỹ năng, 3: Bang hội, 4: Chức năng, 5: Đệ tử, 6: Bạn bè
         private int _selectedSubTab = 0;  // 0: Nhiệm vụ chính, 1: Nhiệm vụ khác
         private int _selectedTaskPosition = 0;
         private int _selectedOtherCategoryIndex = 0; // 0: Bò Mộng, 1: Kanao, 2: Ngư Dân, 3: Bang Hội
@@ -84,6 +98,7 @@ namespace Game2.UI.CustomMenu
         // Scroll adapters
         private UiScrollList _leftScrollAdapter;
         private UiScrollList _rightScrollAdapter;
+        private readonly UiScrollList _mainTabScrollAdapter = new UiScrollList();
 
         // Layout bounds
         private UiRect _frameRect;
@@ -130,14 +145,44 @@ namespace Game2.UI.CustomMenu
         private UiRect _clanDialogRect;
         private UiRect _clanDialogCloseRect;
         private UiRect _clanDialogSubmitRect;
-        private readonly UiRect[] _functionMenuRects = new UiRect[12];
+        private readonly UiRect[] _functionMenuRects = new UiRect[11];
         private readonly UiRect[] _functionZoneRects = new UiRect[20];
         private readonly UiRect[] _functionToggleRects = new UiRect[5];
+        private readonly UiTabBar _discipleLeftTabBar = new UiTabBar();
+        private readonly UiTabBar _discipleRightTabBar = new UiTabBar();
+        private int _discipleLeftTab;
+        private int _discipleRightTab;
+        private int _discipleFocusArea;
+        private int _selectedDiscipleRow;
+        private int _selectedDiscipleEquipmentSlot = -1;
+        private int _friendMode;
+        private int _friendFocusArea;
+        private int _selectedFriendRow;
+        private int _selectedFriendMessage;
+        private int _friendSearchToken;
+        private int _friendInboxToken;
+        private int _friendChatFieldFriendId = -1;
+        private TField _friendSearchField;
+        private TField _friendChatField;
+        private TextFieldAdapter _friendSearchAdapter;
+        private TextFieldAdapter _friendChatAdapter;
+        private UiRect _friendHeaderRect;
+        private UiRect _friendChatHeaderRect;
+        private UiRect _friendMailRect;
+        private UiRect _friendSearchRect;
+        private UiRect _friendFindRect;
+        private UiRect _friendHeadingRect;
+        private UiRect _friendListRect;
+        private UiRect _friendChatRect;
+        private UiRect _friendComposerRect;
+        private UiRect _friendLocationRect;
+        private UiRect _friendSendRect;
         private UiRect _functionWorldChatListRect;
         private UiRect _functionWorldChatComposerRect;
         private UiRect _functionWorldChatSendRect;
 
-        private const int MainTabCount = 5;
+        private const int MainTabCount = 7;
+        private const int MainTabRowHeight = 48;
         private const int MaxFrameWidth = 460;
         private const int MaxFrameHeight = 242;
         private const int SidebarWidth = 70;
@@ -148,7 +193,8 @@ namespace Game2.UI.CustomMenu
         private const int InventoryEquipmentBorderInset = 2;
         private const int InventoryGridColumns = 5;
         private const int InventoryGridRowHeight = 36;
-        private const int InventoryListRowHeight = 39;
+        private const int CompactListRowHeight = 31;
+        private const int InventoryListRowHeight = CompactListRowHeight;
         private const int SkillRowHeight = 35;
         private const int PotentialStatRowCount = 5;
         private const int IntrinsicRowIndex = 5;
@@ -200,16 +246,15 @@ namespace Game2.UI.CustomMenu
         private const int FunctionFocusContent = 1;
         private const int FunctionNotification = 0;
         private const int FunctionChangeZone = 1;
-        private const int FunctionDisciple = 2;
-        private const int FunctionChangeFlag = 3;
-        private const int FunctionActivity = 4;
-        private const int FunctionCollection = 5;
-        private const int FunctionWorldChat = 6;
-        private const int FunctionMod = 7;
-        private const int FunctionAccount = 8;
-        private const int FunctionSettings = 9;
-        private const int FunctionHistory = 10;
-        private const int FunctionChangeAccount = 11;
+        private const int FunctionChangeFlag = 2;
+        private const int FunctionActivity = 3;
+        private const int FunctionCollection = 4;
+        private const int FunctionWorldChat = 5;
+        private const int FunctionMod = 6;
+        private const int FunctionAccount = 7;
+        private const int FunctionSettings = 8;
+        private const int FunctionHistory = 9;
+        private const int FunctionChangeAccount = 10;
         private const int FunctionViewDefault = 0;
         private const int FunctionViewNotifications = 1;
         private const int FunctionViewZones = 2;
@@ -220,7 +265,6 @@ namespace Game2.UI.CustomMenu
         private const int FunctionViewActivitySources = 7;
         private const int FunctionViewWorldChat = 8;
         private const int FunctionViewToggles = 9;
-        private const int FunctionViewDisciple = 10;
         private const int FunctionViewCollection = 11;
         private const int FunctionViewAccount = 12;
         private const int FunctionViewSettings = 13;
@@ -271,13 +315,15 @@ namespace Game2.UI.CustomMenu
             "Hành trang",
             "Kỹ năng",
             "Bang hội",
-            "Chức năng"
+            "Chức năng",
+            "Đệ tử",
+            "Bạn bè"
         };
 
         private static readonly string[] FunctionNames = new string[]
         {
             "Thông báo", "Đổi khu",
-            "Đệ tử", "Đổi cờ",
+            "Đổi cờ",
             "Năng động", "Sổ sưu tầm",
             "Chat thế giới", "Chức năng",
             "Tài khoản", "Cấu hình",
@@ -554,6 +600,8 @@ namespace Game2.UI.CustomMenu
             _clanChatField?.setFocus(false);
             _functionWorldChatFocused = false;
             _functionWorldChatField?.setFocus(false);
+            if (_selectedMainTab == 6) LeaveFriendTab();
+            else BlurFriendInputs();
             _inputContext?.ConsumePointer();
             _inputContext?.Reset();
             _previousScreen = null;
@@ -595,9 +643,16 @@ namespace Game2.UI.CustomMenu
                 _instance._leftScrollAdapter.ScrollByWheel(wheelDelta);
                 return true;
             }
+            if (_instance._mainTabScrollAdapter.Viewport.Contains(pointerX, pointerY))
+            {
+                _instance._mainTabScrollAdapter.ScrollByWheel(wheelDelta);
+                return true;
+            }
             if (_instance._rightScrollAdapter != null
                 && _instance._rightScrollAdapter.Viewport.Contains(pointerX, pointerY))
             {
+                if (_instance._selectedMainTab == 6 && wheelDelta > 0)
+                    _instance._friendChatAtBottom = false;
                 _instance._rightScrollAdapter.ScrollByWheel(wheelDelta);
                 return true;
             }
@@ -658,6 +713,12 @@ namespace Game2.UI.CustomMenu
                 _selectedFunctionRow = 0;
                 _functionWorldChatFocused = false;
                 _functionWorldChatField = null;
+                _friendMode = FriendModeFriends;
+                _friendFocusArea = FriendFocusList;
+                _selectedFriendRow = 0;
+                _selectedFriendMessage = 0;
+                _friendSearchToken = 0;
+                _friendInboxToken = 0;
                 _keyboardFocus = KeyboardFocusContent;
                 _hasInitializedState = true;
             }
@@ -684,6 +745,9 @@ namespace Game2.UI.CustomMenu
             _closeBtnRect = new UiRect(_footerRect.X + _footerRect.Width - 24, _footerRect.Y + 2, 22, 22);
 
             _tabBarRect = new UiRect(frameX, frameY, SidebarWidth, frameH);
+            _mainTabScrollAdapter.Reset();
+            _mainTabScrollAdapter.Configure(_tabBarRect, MainTabCount, MainTabRowHeight);
+            _mainTabScrollAdapter.ScrollToIndex(_selectedMainTab);
             _contentRect = new UiRect(contentX, frameY, contentW, contentH);
 
             int columnWidth = (contentW - 12) / 2;
@@ -703,12 +767,14 @@ namespace Game2.UI.CustomMenu
             _inventoryBagTab0Rect = new UiRect(rightX, frameY + 4, inventoryBagTabW, 22);
             _inventoryBagTab1Rect = new UiRect(_inventoryBagTab0Rect.X + inventoryBagTabW + 4, frameY + 4, inventoryBagTabW, 22);
             ConfigureInventoryTabBars();
+            ConfigureDiscipleTabBars();
             _rightBodyRect = new UiRect(_rightColRect.X + 2, _rightColRect.Y + 26, _rightColRect.Width - 4, _rightColRect.Height - 28);
             ConfigureEquipmentSlotRects();
             ConfigureInventoryDetailRects();
             ConfigureSkillActionRects();
             ConfigureClanRects();
             ConfigureFunctionRects();
+            ConfigureFriendRects();
 
             // Auto-select active main task
             Task currentTask = (Char.myCharz() != null) ? Char.myCharz().taskMaint : null;
@@ -725,6 +791,10 @@ namespace Game2.UI.CustomMenu
                 RefreshClanData();
             else if (_selectedMainTab == 4)
                 EnterFunctionTab();
+            else if (_selectedMainTab == 5)
+                EnterDiscipleTab();
+            else if (_selectedMainTab == 6)
+                EnterFriendTab();
         }
 
         private static void DismissIntrinsicNpcOverlay()
@@ -743,11 +813,13 @@ namespace Game2.UI.CustomMenu
             {
                 _mainTabIcons = new Image[]
                 {
-                    GameCanvas.loadImage("/custom_menu/tab_task.png"),
-                    GameCanvas.loadImage("/custom_menu/tab_inventory.png"),
-                    GameCanvas.loadImage("/custom_menu/tab_skill.png"),
-                    GameCanvas.loadImage("/custom_menu/tab_clan.png"),
-                    GameCanvas.loadImage("/custom_menu/tab_function.png")
+                    GameCanvas.loadImage("/custom_menu/main_task.png"),
+                    GameCanvas.loadImage("/custom_menu/main_inventory.png"),
+                    GameCanvas.loadImage("/custom_menu/main_skill.png"),
+                    GameCanvas.loadImage("/custom_menu/main_clan.png"),
+                    GameCanvas.loadImage("/custom_menu/main_function.png"),
+                    GameCanvas.loadImage("/custom_menu/main_disciple.png"),
+                    GameCanvas.loadImage("/custom_menu/main_friend.png")
                 };
             }
             if (_otherTaskIcons == null)
@@ -828,6 +900,23 @@ namespace Game2.UI.CustomMenu
                 return;
             }
 
+            if (_selectedMainTab == 5)
+            {
+                _leftScrollAdapter.Configure(_leftColRect,
+                    _discipleLeftTab == 0 ? GetDiscipleEquipmentCount() : 0, CompactListRowHeight);
+                _rightScrollAdapter.Configure(_rightBodyRect,
+                    _discipleRightTab == 0 ? GetDiscipleSkillRowCount() : GetDiscipleStatusCount(),
+                    _discipleRightTab == 0 ? 30 : 29);
+                return;
+            }
+
+            if (_selectedMainTab == 6)
+            {
+                _leftScrollAdapter.Configure(_friendListRect, GetFriendRowCount(), FriendRowHeight);
+                _rightScrollAdapter.Configure(_friendChatRect, GetFriendMessageCount(), FriendMessageRowHeight);
+                return;
+            }
+
             if (_selectedMainTab != 0)
             {
                 _leftScrollAdapter.Configure(UiRect.Empty, 0, 1);
@@ -878,6 +967,31 @@ namespace Game2.UI.CustomMenu
                 if (_rightScrollAdapter != null && _rightScrollAdapter.ItemCount != expectedFunctionScrollCount)
                     ConfigureScrollAdapters();
             }
+            if (_selectedMainTab == 5) RefreshDiscipleInfo();
+            if (_selectedMainTab == 5 && _leftScrollAdapter != null && _rightScrollAdapter != null)
+            {
+                int equipmentCount = _discipleLeftTab == 0 ? GetDiscipleEquipmentCount() : 0;
+                int rightCount = _discipleRightTab == 0 ? GetDiscipleSkillRowCount() : GetDiscipleStatusCount();
+                if (_leftScrollAdapter.ItemCount != equipmentCount || _rightScrollAdapter.ItemCount != rightCount)
+                    ConfigureScrollAdapters();
+            }
+            if (_selectedMainTab == 6)
+            {
+                _friendSearchAdapter?.Update();
+                _friendChatAdapter?.Update();
+                int friendRowCount = GetFriendRowCount();
+                int messageCount = GetFriendMessageCount();
+                bool newMessage = _rightScrollAdapter != null
+                    && _rightScrollAdapter.ItemCount != messageCount;
+                if (_leftScrollAdapter != null && _rightScrollAdapter != null
+                    && (_leftScrollAdapter.ItemCount != friendRowCount || newMessage))
+                {
+                    ConfigureScrollAdapters();
+                    if (newMessage && _friendChatAtBottom && messageCount > 0)
+                        _rightScrollAdapter.ScrollToIndex(messageCount - 1);
+                }
+                MaybeLoadFriendNextPage();
+            }
             if (_selectedMainTab == 1 && _selectedInventoryLeftTab == 1 && _leftScrollAdapter != null)
             {
                 int infoRows = (GetInventoryInfoContentHeight() + 9) / 10;
@@ -885,6 +999,9 @@ namespace Game2.UI.CustomMenu
             }
             _leftScrollAdapter?.Update();
             _rightScrollAdapter?.Update();
+            if (_selectedMainTab == 6 && _rightScrollAdapter != null)
+                _friendChatAtBottom = _rightScrollAdapter.ScrollY >= _rightScrollAdapter.ScrollLimit - 2;
+            _mainTabScrollAdapter.Update();
         }
 
         public override void updateKey()
@@ -935,6 +1052,11 @@ namespace Game2.UI.CustomMenu
                     _functionWorldChatField?.setFocus(false);
                     return;
                 }
+                if (_selectedMainTab == 6 && IsFriendInputFocused())
+                {
+                    BlurFriendInputs();
+                    return;
+                }
                 Close();
                 return;
             }
@@ -949,6 +1071,7 @@ namespace Game2.UI.CustomMenu
             }
 
             // 3. Hierarchical keyboard navigation between sidebar, subtabs, and rows.
+            if (_selectedMainTab == 6 && HandleFriendTextInput()) return;
             if (HandleKeyboardNavigation()) return;
 
             // Pointer on Close Button
@@ -960,11 +1083,9 @@ namespace Game2.UI.CustomMenu
             }
 
             // Pointer on Vertical Tab Bar
-            if (GameCanvas.isPointerJustRelease && GameCanvas.isPointer(_tabBarRect.X, _tabBarRect.Y, _tabBarRect.Width, _tabBarRect.Height))
+            if (_mainTabScrollAdapter.UpdateKey(_inputContext, out int clickedTab)
+                && clickedTab >= 0 && clickedTab < MainTabCount)
             {
-                int clickedTab = (GameCanvas.py - _tabBarRect.Y) * MainTabCount / _tabBarRect.Height;
-                if (clickedTab >= 0 && clickedTab < MainTabCount)
-                {
                     CloseInventoryDetail();
                     if (clickedTab != 3)
                     {
@@ -976,6 +1097,7 @@ namespace Game2.UI.CustomMenu
                         _functionWorldChatFocused = false;
                         _functionWorldChatField?.setFocus(false);
                     }
+                    if (_selectedMainTab == 6 && clickedTab != 6) LeaveFriendTab();
                     _selectedMainTab = clickedTab;
                     if (_selectedMainTab == 0) _selectedSubTab = 0;
                     _showSkillKeyPicker = false;
@@ -985,6 +1107,8 @@ namespace Game2.UI.CustomMenu
                     if (_selectedMainTab == 2) RequestSelectedIntrinsicInfo();
                     if (_selectedMainTab == 3) EnterClanTab();
                     if (_selectedMainTab == 4) EnterFunctionTab();
+                    if (_selectedMainTab == 5) EnterDiscipleTab();
+                    if (_selectedMainTab == 6) EnterFriendTab();
                     _keyboardFocus = KeyboardFocusMainTabs;
                     GameCanvas.isPointerJustRelease = false;
                     _leftScrollAdapter?.Reset();
@@ -995,7 +1119,6 @@ namespace Game2.UI.CustomMenu
                     else if (_selectedMainTab == 2 && _selectedSkillRow >= 0)
                         _leftScrollAdapter?.ScrollToIndex(_selectedSkillRow);
                     return;
-                }
             }
 
             if (_selectedMainTab == 0)
@@ -1074,6 +1197,14 @@ namespace Game2.UI.CustomMenu
                 return;
             }
             else if (_selectedMainTab == 4 && HandleFunctionPointerInput())
+            {
+                return;
+            }
+            else if (_selectedMainTab == 5 && HandleDisciplePointerInput())
+            {
+                return;
+            }
+            else if (_selectedMainTab == 6 && HandleFriendPointerInput())
             {
                 return;
             }

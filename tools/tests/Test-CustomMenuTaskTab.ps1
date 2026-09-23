@@ -104,7 +104,7 @@ foreach ($variant in $variants) {
     Assert-Contains $menu 'GetMainTaskName\(taskId\)' "$variant must render task names instead of generic task numbers."
     Assert-Contains $menu 'Vui lòng hoàn thành nhiệm vụ trước đó để xem' "$variant must hide locked-task details behind a clear message."
 
-    Assert-Contains $menu '/custom_menu/tab_task\.png' "$variant must load the supplied task-tab icon."
+    Assert-Contains $menu '/custom_menu/main_task\.png' "$variant must load the supplied task-tab icon."
     Assert-Contains $menu '/custom_menu/task_daily\.png' "$variant must load the supplied daily-task icon."
     Assert-Contains $menu '/custom_menu/status_tick\.png' "$variant must load the supplied completed-task icon."
     Assert-Contains $menu '/custom_menu/status_lock\.png' "$variant must load the supplied locked-task icon."
