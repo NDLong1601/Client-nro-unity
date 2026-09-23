@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 $root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 $variants = @('Game1', 'Game2')
@@ -34,8 +34,9 @@ function Get-MethodBody {
 }
 
 foreach ($variant in $variants) {
-    $menuPath = Join-Path $root "Assets\Scripts\Assembly-CSharp\$variant\UI\CustomMenu\CustomMenuScr.cs"
-    $menu = Get-Content -LiteralPath $menuPath -Raw -Encoding UTF8
+    $menuDir = Join-Path $root "Assets\Scripts\Assembly-CSharp\$variant\UI\CustomMenu"
+    $menu = (Get-ChildItem -LiteralPath $menuDir -Filter 'CustomMenuScr*.cs' -File |
+        Sort-Object Name | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8 }) -join "`n"
 
     Assert-Contains $menu 'InventoryEquipmentSlotCount\s*=\s*16' "$variant inventory must reserve sixteen visual equipment slots."
     Assert-Contains $menu 'InventoryEquipmentBorderInset\s*=\s*2' "$variant equipment-level frame must be inset two pixels from its cell."
@@ -60,8 +61,14 @@ foreach ($variant in $variants) {
     Assert-Contains $inventoryPaint 'PaintInventoryList\(g\)' "$variant inventory must render the default list flow."
 
     $equipmentPaint = Get-MethodBody $menu 'private void PaintEquipmentSlots'
-    Assert-Contains $equipmentPaint 'slot\s*<\s*body\.Length\s*\?\s*body\[slot\]\s*:\s*null' "$variant placeholder equipment slots must never index past the fourteen server slots."
+    Assert-Contains $equipmentPaint 'UiEquipmentGrid\.Paint' "$variant equipment layout must delegate slot rendering to the reusable grid component."
     Assert-Contains $equipmentPaint 'paintCharBody' "$variant equipment panel must render the equipped character preview."
+
+    $equipmentGridPath = Join-Path $root "Assets\Scripts\Assembly-CSharp\$variant\UI\Components\UiEquipmentGrid.cs"
+    $equipmentGrid = Get-Content -LiteralPath $equipmentGridPath -Raw -Encoding UTF8
+    $equipmentGridPaint = Get-MethodBody $equipmentGrid 'public static void Paint'
+    Assert-Contains $equipmentGridPaint 'serverSlot\s*<\s*items\.Length\s*\?\s*items\[serverSlot\]\s*:\s*null' "$variant placeholder equipment slots must never index past the server body slots."
+    Assert-Contains $equipmentGridPaint 'UiItemSlot\.PaintEmptyLabel' "$variant equipment grid must render caller-provided labels for empty slots."
 
     $equipmentLayout = Get-MethodBody $menu 'private void ConfigureEquipmentSlotRects'
     Assert-Contains $equipmentLayout 'const\s+int\s+columns\s*=\s*5' "$variant equipment layout must use one five-column grid."
@@ -124,18 +131,29 @@ foreach ($variant in $variants) {
     Assert-Contains $detail 'PaintCrystalStars' "$variant item details must restore filled and empty crystal-star slots."
     Assert-Contains $detail 'headerDividerY[\s\S]*footerY[\s\S]*starY' "$variant item detail must keep distinct header, requirement and crystal-star dividers."
 
-    $cellLayers = Get-MethodBody $menu 'private static void PaintInventoryItemCell'
-    Assert-Contains $cellLayers 'g\.setColor\(defaultColor\)' "$variant item cells must retain one neutral background regardless of crystal stars."
+    $slotPath = Join-Path $root "Assets\Scripts\Assembly-CSharp\$variant\UI\Components\UiItemSlot.cs"
+    $slot = Get-Content -LiteralPath $slotPath -Raw -Encoding UTF8
+    $skillPanelPath = Join-Path $root "Assets\Scripts\Assembly-CSharp\$variant\UI\Components\UiSkillPanel.cs"
+    $skillPanel = Get-Content -LiteralPath $skillPanelPath -Raw -Encoding UTF8
+    Assert-Contains $menu 'UiSkillPanel\.PaintHeader' "$variant skill headers must use the reusable skill-panel component."
+    Assert-Contains $menu 'UiSkillPanel\.PaintListColumn' "$variant skill rows must keep scrolling in the shared skill-panel component."
+    Assert-Contains $menu 'UiSkillPanel\.PaintDetailColumn' "$variant skill detail content must render inside the shared panel surface."
+    Assert-Contains $skillPanel 'Action<mGraphics,\s*int,\s*UiRect>\s+paintRow' "$variant skill-panel rows must accept caller-owned content."
+    Assert-Contains $skillPanel 'Action<mGraphics>\s+paintContent' "$variant skill-panel details must accept caller-owned content."
+    $cellLayers = Get-MethodBody $slot 'public static void Paint(mGraphics g, Item item'
+    Assert-Contains $menu 'UiItemSlot\.Paint\(g, item, rect, selected, 0xB7A489, InventoryEquipmentBorderInset\)' "$variant inventory grid cells must use the shared item-slot component."
+    Assert-Contains $menu 'UiItemSlot\.Paint\(graphics, item, iconRect, selected, 0xB7A489, InventoryEquipmentBorderInset\)' "$variant item-list rows must use the shared item-slot component."
+    Assert-Contains $cellLayers 'g\.setColor\(backgroundColor\)' "$variant item cells must retain one neutral background regardless of crystal stars."
     Assert-NotContains $cellLayers 'getCrystalCellColor' "$variant crystal stars must not tint the item-cell background."
-    Assert-Contains $cellLayers 'paintInventoryGridEffect[\s\S]*includeUpgradeLevel:\s*false[\s\S]*includeCrystalStars:\s*false' "$variant CustomMenu must disable both upgrade and crystal-star background effects."
-    Assert-Contains $cellLayers 'paintInventoryGridItemMarkers[\s\S]*paintCrystalSlotBorder:\s*false' "$variant CustomMenu must keep crystal stars out of the equipment-border channel."
-    Assert-Contains $cellLayers 'Panel\.paintEquipmentCellFrame[\s\S]*inset:\s*InventoryEquipmentBorderInset' "$variant equipment-level frame must use the two-pixel inner inset."
-    Assert-Contains $cellLayers 'g\.drawRect\(rect\.X,\s*rect\.Y,\s*rect\.Width\s*-\s*1,\s*rect\.Height\s*-\s*1\)' "$variant item cells must retain a stable outer grid divider."
-    Assert-Contains $cellLayers 'PaintInventoryFocusFrame' "$variant focused cells must have an explicit focus glow."
+    Assert-Contains $cellLayers 'paintInventoryGridEffect[\s\S]*includeUpgradeLevel:\s*false[\s\S]*includeCrystalStars:\s*false' "$variant item-slot component must disable both upgrade and crystal-star background effects."
+    Assert-Contains $cellLayers 'paintInventoryGridItemMarkers[\s\S]*paintCrystalSlotBorder:\s*false' "$variant item-slot component must keep crystal stars out of the equipment-border channel."
+    Assert-Contains $cellLayers 'Panel\.paintEquipmentCellFrame[\s\S]*inset:\s*equipmentBorderInset' "$variant equipment-level frame must use the caller's inner inset."
+    Assert-Contains $cellLayers 'g\.drawRect\(bounds\.X,\s*bounds\.Y,\s*bounds\.Width\s*-\s*1,\s*bounds\.Height\s*-\s*1\)' "$variant item cells must retain a stable outer grid divider."
+    Assert-Contains $cellLayers 'PaintFocusFrame' "$variant focused cells must have an explicit focus glow."
 
-    $focusFrame = Get-MethodBody $menu 'private static void PaintInventoryFocusFrame'
-    Assert-NotContains $focusFrame 'rect\.X\s*-\s*1|rect\.Y\s*-\s*1' "$variant focus frame must never bleed outside its cell."
-    Assert-Contains $focusFrame 'rect\.X\s*\+\s*1[\s\S]*rect\.Y\s*\+\s*1' "$variant focus glow must use a second inner line."
+    $focusFrame = Get-MethodBody $slot 'public static void PaintFocusFrame'
+    Assert-NotContains $focusFrame 'bounds\.X\s*-\s*1|bounds\.Y\s*-\s*1' "$variant focus frame must never bleed outside its cell."
+    Assert-Contains $focusFrame 'bounds\.X\s*\+\s*1[\s\S]*bounds\.Y\s*\+\s*1' "$variant focus glow must use a second inner line."
 
     $starPaint = Get-MethodBody $menu 'private static void PaintCrystalStars'
     Assert-Contains $starPaint 'Panel\.imgMaxStar' "$variant must paint empty crystal-star slots with the original asset."

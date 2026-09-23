@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 $root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 $variants = @('Game1', 'Game2')
@@ -30,8 +30,9 @@ function Get-MethodBody {
 }
 
 foreach ($variant in $variants) {
-    $menuPath = Join-Path $root "Assets\Scripts\Assembly-CSharp\$variant\UI\CustomMenu\CustomMenuScr.cs"
-    $menu = Get-Content -LiteralPath $menuPath -Raw -Encoding UTF8
+    $menuDir = Join-Path $root "Assets\Scripts\Assembly-CSharp\$variant\UI\CustomMenu"
+    $menu = (Get-ChildItem -LiteralPath $menuDir -Filter 'CustomMenuScr*.cs' -File |
+        Sort-Object Name | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8 }) -join "`n"
 
     $adapterPath = Join-Path $root "Assets\Scripts\Assembly-CSharp\$variant\UI\Adapters\ScrollViewAdapter.cs"
     $adapter = Get-Content -LiteralPath $adapterPath -Raw -Encoding UTF8
@@ -62,6 +63,15 @@ foreach ($variant in $variants) {
     Assert-Contains $clanPaint 'PaintClanFunctionTabs\(g\)' "$variant normal clan views must show the six function buttons."
     Assert-Contains $clanPaint 'PaintClanHistory\(g\)' "$variant history must use its dedicated layout."
     Assert-Contains $clanPaint 'PaintClanSideActions\(g\)' "$variant clan tab must expose context actions outside the content columns."
+
+    $chatMessages = Get-MethodBody $menu 'private void PaintClanChatMessages'
+    Assert-Contains $chatMessages '_leftScrollAdapter\.Paint' "$variant clan chat rows must use the shared scroll-list renderer."
+    Assert-NotContains $chatMessages 'for\s*\(int\s+i\s*=\s*0;\s*i\s*<\s*ClanMessage' "$variant clan chat must leave clipping and row culling to the scroll component."
+    $clanButton = Get-MethodBody $menu 'private static void PaintClanButton'
+    Assert-Contains $clanButton 'UiMenuTheme\.PaintButton' "$variant clan buttons must use the shared raised menu theme."
+    Assert-NotContains $clanButton 'g\.fillRect' "$variant clan buttons must not duplicate their component's visual renderer."
+    $clanOptions = Get-MethodBody $menu 'private void PaintClanMessageOptions'
+    Assert-Contains $clanOptions 'UiActionButton\.PaintFlat' "$variant clan message actions must use the shared flat button painter."
 
     $refresh = Get-MethodBody $menu 'private void RefreshClanData'
     Assert-Contains $refresh 'ClanProgression\.requestSnapshot' "$variant clan tab must refresh progression through the original clan flow."

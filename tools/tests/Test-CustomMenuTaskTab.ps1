@@ -34,11 +34,12 @@ function Get-MethodBody {
 }
 
 foreach ($variant in $variants) {
-    $menuPath = Join-Path $root "Assets\Scripts\Assembly-CSharp\$variant\UI\CustomMenu\CustomMenuScr.cs"
+    $menuDir = Join-Path $root "Assets\Scripts\Assembly-CSharp\$variant\UI\CustomMenu"
     $controllerPath = Join-Path $root "Assets\Scripts\Assembly-CSharp\$variant\Controller.cs"
     $mainPath = Join-Path $root "Assets\Scripts\Assembly-CSharp\$variant\Main.cs"
     $canvasPath = Join-Path $root "Assets\Scripts\Assembly-CSharp\$variant\GameCanvas.cs"
-    $menu = Get-Content -LiteralPath $menuPath -Raw
+    $menu = (Get-ChildItem -LiteralPath $menuDir -Filter 'CustomMenuScr*.cs' -File |
+        Sort-Object Name | ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8 }) -join "`n"
     $controller = Get-Content -LiteralPath $controllerPath -Raw
     $main = Get-Content -LiteralPath $mainPath -Raw
     $canvas = Get-Content -LiteralPath $canvasPath -Raw

@@ -13051,6 +13051,11 @@ else
             }
         }
 
+        public MyVector getPKHistoryEntries()
+        {
+            return pkHistoryEntries;
+        }
+
         private int getPlayerInfoEquipmentState()
         {
             unchecked

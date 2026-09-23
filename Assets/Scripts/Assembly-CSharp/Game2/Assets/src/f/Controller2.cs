@@ -419,6 +419,10 @@ namespace Game2.Assets.src.f
 							}
 							GameCanvas.panel.vFlag.addElement(item);
 						}
+						if (Game2.UI.CustomMenu.CustomMenuScr.TryConsumeFunctionFlagOpen())
+						{
+							break;
+						}
 						GameCanvas.panel.setTypeFlag();
 						GameCanvas.panel.show();
 						break;
@@ -712,6 +716,7 @@ namespace Game2.Assets.src.f
 					string str = msg.reader().readUTF();
 					str = Res.changeString(str);
 					GameScr.gI().chatVip(str);
+					Game2.UI.CustomMenu.CustomMenuScr.OnWorldChat(str);
 					break;
 				}
 				case 98:
