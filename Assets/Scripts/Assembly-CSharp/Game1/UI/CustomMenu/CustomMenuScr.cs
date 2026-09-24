@@ -41,7 +41,7 @@ namespace Game1.UI.CustomMenu
         }
 
         // Tabs state
-        private int _selectedMainTab = 0; // 0: Nhiệm vụ, 1: Hành trang, 2: Kỹ năng, 3: Bang hội, 4: Chức năng, 5: Đệ tử, 6: Bạn bè
+        private int _selectedMainTab = 0; // 0: Nhiệm vụ, 1: Hành trang, 2: Kỹ năng, 3: Bang hội, 4: Chức năng, 5: Đệ tử, 6: Bạn bè, 7: Bộ sưu tập
         private int _selectedSubTab = 0;  // 0: Nhiệm vụ chính, 1: Nhiệm vụ khác
         private int _selectedTaskPosition = 0;
         private int _selectedOtherCategoryIndex = 0; // 0: Bò Mộng, 1: Kanao, 2: Ngư Dân, 3: Bang Hội
@@ -181,7 +181,7 @@ namespace Game1.UI.CustomMenu
         private UiRect _functionWorldChatComposerRect;
         private UiRect _functionWorldChatSendRect;
 
-        private const int MainTabCount = 7;
+        private const int MainTabCount = 8;
         private const int MainTabRowHeight = 48;
         private const int MaxFrameWidth = 460;
         private const int MaxFrameHeight = 242;
@@ -317,7 +317,8 @@ namespace Game1.UI.CustomMenu
             "Bang hội",
             "Chức năng",
             "Đệ tử",
-            "Bạn bè"
+            "Bạn bè",
+            "Bộ sưu tập"
         };
 
         private static readonly string[] FunctionNames = new string[]
@@ -775,6 +776,7 @@ namespace Game1.UI.CustomMenu
             ConfigureClanRects();
             ConfigureFunctionRects();
             ConfigureFriendRects();
+            ConfigureCollectionRects();
 
             // Auto-select active main task
             Task currentTask = (Char.myCharz() != null) ? Char.myCharz().taskMaint : null;
@@ -795,6 +797,8 @@ namespace Game1.UI.CustomMenu
                 EnterDiscipleTab();
             else if (_selectedMainTab == 6)
                 EnterFriendTab();
+            else if (_selectedMainTab == CollectionMainTab)
+                EnterCollectionTab();
         }
 
         private static void DismissIntrinsicNpcOverlay()
@@ -819,7 +823,8 @@ namespace Game1.UI.CustomMenu
                     GameCanvas.loadImage("/custom_menu/main_clan.png"),
                     GameCanvas.loadImage("/custom_menu/main_function.png"),
                     GameCanvas.loadImage("/custom_menu/main_disciple.png"),
-                    GameCanvas.loadImage("/custom_menu/main_friend.png")
+                    GameCanvas.loadImage("/custom_menu/main_friend.png"),
+                    GameCanvas.loadImage("/custom_menu/main_collection.png")
                 };
             }
             if (_otherTaskIcons == null)
@@ -917,6 +922,12 @@ namespace Game1.UI.CustomMenu
                 return;
             }
 
+            if (_selectedMainTab == CollectionMainTab)
+            {
+                ConfigureCollectionScrollAdapters();
+                return;
+            }
+
             if (_selectedMainTab != 0)
             {
                 _leftScrollAdapter.Configure(UiRect.Empty, 0, 1);
@@ -992,6 +1003,7 @@ namespace Game1.UI.CustomMenu
                 }
                 MaybeLoadFriendNextPage();
             }
+            if (_selectedMainTab == CollectionMainTab) UpdateCollectionScrollAdapters();
             if (_selectedMainTab == 1 && _selectedInventoryLeftTab == 1 && _leftScrollAdapter != null)
             {
                 int infoRows = (GetInventoryInfoContentHeight() + 9) / 10;
@@ -1109,6 +1121,7 @@ namespace Game1.UI.CustomMenu
                     if (_selectedMainTab == 4) EnterFunctionTab();
                     if (_selectedMainTab == 5) EnterDiscipleTab();
                     if (_selectedMainTab == 6) EnterFriendTab();
+                    if (_selectedMainTab == CollectionMainTab) EnterCollectionTab();
                     _keyboardFocus = KeyboardFocusMainTabs;
                     GameCanvas.isPointerJustRelease = false;
                     _leftScrollAdapter?.Reset();
@@ -1205,6 +1218,10 @@ namespace Game1.UI.CustomMenu
                 return;
             }
             else if (_selectedMainTab == 6 && HandleFriendPointerInput())
+            {
+                return;
+            }
+            else if (_selectedMainTab == CollectionMainTab && HandleCollectionPointerInput())
             {
                 return;
             }

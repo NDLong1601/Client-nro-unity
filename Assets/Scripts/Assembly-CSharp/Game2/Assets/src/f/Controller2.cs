@@ -1130,8 +1130,11 @@ namespace Game2.Assets.src.f
 							num3++;
 						}
 					}
-					RadarScr.gI().SetRadarScr(myVector, num3, num2);
-					RadarScr.gI().switchToMe();
+					if (!Game2.UI.CustomMenu.CustomMenuScr.ReceiveCollectionRadar(myVector))
+					{
+						RadarScr.gI().SetRadarScr(myVector, num3, num2);
+						RadarScr.gI().switchToMe();
+					}
 					break;
 				}
 				case 1:
@@ -1142,6 +1145,7 @@ namespace Game2.Assets.src.f
 					{
 						Info_RadaScr.GetInfo(RadarScr.list, id3).SetUse(use2);
 					}
+					Game2.UI.CustomMenu.CustomMenuScr.OnCollectionRadarUse(id3, use2);
 					RadarScr.SetListUse();
 					break;
 				}
@@ -1166,6 +1170,7 @@ namespace Game2.Assets.src.f
 						}
 					}
 					RadarScr.SetNum(num6, RadarScr.list.size());
+					Game2.UI.CustomMenu.CustomMenuScr.OnCollectionRadarLevel(num5, level);
 					if (Info_RadaScr.GetInfo(RadarScr.listUse, num5) != null)
 					{
 						Info_RadaScr.GetInfo(RadarScr.listUse, num5).SetLevel(level);
@@ -1185,6 +1190,7 @@ namespace Game2.Assets.src.f
 					{
 						Info_RadaScr.GetInfo(RadarScr.listUse, id2).SetAmount(amount2, max_amount2);
 					}
+					Game2.UI.CustomMenu.CustomMenuScr.OnCollectionRadarAmount(id2, amount2, max_amount2);
 					break;
 				}
 				case 4:
@@ -1332,6 +1338,7 @@ namespace Game2.Assets.src.f
 						}
 					}
 					CostumeCollectionScr.gI().receiveAchievements(collectionAchievements, ownedCount, totalCount);
+					Game2.UI.CustomMenu.CustomMenuScr.OnCollectionAchievementsReceived();
 					break;
 				}
 				}

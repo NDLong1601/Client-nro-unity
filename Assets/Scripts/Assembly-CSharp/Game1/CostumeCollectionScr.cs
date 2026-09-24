@@ -205,6 +205,16 @@ namespace Game1
 
 		public void requestOpen()
 		{
+			switchToMe();
+			requestData();
+		}
+
+		public MyVector Entries { get { return entries; } }
+		public MyVector Achievements { get { return achievements; } }
+		public bool IsLoading { get { return loading; } }
+
+		public void requestData()
+		{
 			loading = true;
 			entries = new MyVector();
 			achievements = new MyVector();
@@ -216,7 +226,6 @@ namespace Game1
 			lastAchievementCount = -1;
 			lastAchievementInfoId = -1;
 			achievementInfoScroll.clear();
-			switchToMe();
 			Service.gI().SendRada(44, -1);
 		}
 

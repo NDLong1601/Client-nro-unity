@@ -1074,6 +1074,43 @@ namespace Game2
 			Graphics.DrawTexture(rect2, image.texture, new Rect(num3, 1f - num4 - num6, num5, num6), 0, 0, 0, 0);
 		}
 
+		public void drawRegionScaleInClip(Image image, int sourceX, int sourceY, int sourceW, int sourceH,
+			int x, int y, int w, int h)
+		{
+			if (image == null || image.texture == null || sourceW <= 0 || sourceH <= 0 || w <= 0 || h <= 0)
+			{
+				return;
+			}
+			Rect destination = new Rect(x * zoomLevel, y * zoomLevel, w * zoomLevel, h * zoomLevel);
+			if (isTranslate)
+			{
+				destination.x += translateX;
+				destination.y += translateY;
+			}
+			Rect visible = destination;
+			if (isClip)
+			{
+				int clipScreenX = clipX + (isTranslate ? clipTX : 0);
+				int clipScreenY = clipY + (isTranslate ? clipTY : 0);
+				visible = intersectRect(destination, new Rect(clipScreenX, clipScreenY, clipW, clipH));
+				if (visible.width <= 0f || visible.height <= 0f) return;
+			}
+			float left = (visible.x - destination.x) / destination.width;
+			float top = (visible.y - destination.y) / destination.height;
+			float width = visible.width / destination.width;
+			float height = visible.height / destination.height;
+			float sourcePixelX = sourceX * zoomLevel;
+			float sourcePixelY = sourceY * zoomLevel;
+			float sourcePixelW = sourceW * zoomLevel;
+			float sourcePixelH = sourceH * zoomLevel;
+			Rect textureRect = new Rect(
+				(sourcePixelX + left * sourcePixelW) / image.texture.width,
+				(image.texture.height - sourcePixelY - (top + height) * sourcePixelH) / image.texture.height,
+				width * sourcePixelW / image.texture.width,
+				height * sourcePixelH / image.texture.height);
+			Graphics.DrawTexture(visible, image.texture, textureRect, 0, 0, 0, 0);
+		}
+
 		public static int getImageWidth(Image image)
 		{
 			return image.getWidth();

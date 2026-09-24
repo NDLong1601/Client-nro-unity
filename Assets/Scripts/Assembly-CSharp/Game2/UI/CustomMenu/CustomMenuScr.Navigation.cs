@@ -35,7 +35,7 @@ namespace Game2.UI.CustomMenu
                 MoveVerticalSelection(1);
                 return true;
             }
-            if ((_selectedMainTab == 1 || _selectedMainTab == 2 || _selectedMainTab == 3 || _selectedMainTab == 4 || _selectedMainTab == 5 || _selectedMainTab == 6)
+            if ((_selectedMainTab == 1 || _selectedMainTab == 2 || _selectedMainTab == 3 || _selectedMainTab == 4 || _selectedMainTab == 5 || _selectedMainTab == 6 || _selectedMainTab == CollectionMainTab)
                 && GameCanvas.keyPressed[Main.isPC ? 25 : 5])
             {
                 GameCanvas.keyPressed[25] = false;
@@ -50,6 +50,7 @@ namespace Game2.UI.CustomMenu
                 else if (_selectedMainTab == 4) HandleFunctionConfirm();
                 else if (_selectedMainTab == 5) HandleDiscipleConfirm();
                 else if (_selectedMainTab == 6) HandleFriendConfirm();
+                else if (_selectedMainTab == CollectionMainTab) HandleCollectionConfirm();
                 else HandleSkillConfirm();
                 return true;
             }
@@ -234,6 +235,12 @@ namespace Game2.UI.CustomMenu
                 return;
             }
 
+            if (_selectedMainTab == CollectionMainTab)
+            {
+                MoveCollectionHorizontalFocus(direction);
+                return;
+            }
+
             if (_selectedMainTab != 0)
             {
                 if (direction < 0)
@@ -290,6 +297,7 @@ namespace Game2.UI.CustomMenu
                 if (_selectedMainTab == 4) EnterFunctionTab();
                 if (_selectedMainTab == 5) EnterDiscipleTab();
                 if (_selectedMainTab == 6) EnterFriendTab();
+                if (_selectedMainTab == CollectionMainTab) EnterCollectionTab();
                 RefreshKeyboardPage();
                 SoundMn.gI().panelClick();
                 return;
@@ -352,6 +360,12 @@ namespace Game2.UI.CustomMenu
             if (_selectedMainTab == 6)
             {
                 MoveFriendVerticalSelection(direction);
+                return;
+            }
+
+            if (_selectedMainTab == CollectionMainTab)
+            {
+                MoveCollectionVerticalSelection(direction);
                 return;
             }
 

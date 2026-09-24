@@ -15,7 +15,7 @@ foreach ($variant in @('Game1', 'Game2')) {
     $view = Get-Content (Join-Path $dir 'CustomMenuScr.Friend.View.cs') -Raw -Encoding UTF8
     $controller = Get-Content (Join-Path $root "Assets\Scripts\Assembly-CSharp\$variant\Controller.cs") -Raw -Encoding UTF8
 
-    Require ($core.Contains('MainTabCount = 7') -and $core.Contains('/custom_menu/main_friend.png')) "$variant missing the seventh scrollable main tab."
+    Require ($core.Contains('MainTabCount = 8') -and $core.Contains('/custom_menu/main_friend.png')) "$variant missing the scrollable friend main tab."
     Require ($chrome.Contains('PaintFriendTabContent(g)') -and $navigation.Contains('HandleFriendConfirm()')) "$variant missing friend rendering or keyboard interaction."
     Require ($core.Contains('HandleFriendPointerInput()') -and $core.Contains('ConfigureFriendRects()')) "$variant missing friend layout or pointer interaction."
     Require ($controller.Contains("$variant.UI.CustomMenu.CustomMenuScr.ConsumeFriendListResponseForCustomMenu()")) "$variant must keep the legacy friend panel from covering the new tab."

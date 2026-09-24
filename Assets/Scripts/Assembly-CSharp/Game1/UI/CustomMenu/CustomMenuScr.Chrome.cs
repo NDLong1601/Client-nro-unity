@@ -61,6 +61,10 @@ namespace Game1.UI.CustomMenu
             {
                 PaintFriendTabContent(g);
             }
+            else if (_selectedMainTab == CollectionMainTab)
+            {
+                PaintCollectionTabContent(g);
+            }
             else
             {
                 PaintEmptyTabContent(g);

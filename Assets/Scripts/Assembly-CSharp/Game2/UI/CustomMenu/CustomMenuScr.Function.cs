@@ -319,9 +319,8 @@ namespace Game2.UI.CustomMenu
             }
             else if (index == FunctionCollection)
             {
-                _functionView = FunctionViewCollection;
-                Service.gI().SendRada(0, -1);
-                CostumeCollectionScr.gI().requestOpen();
+                SwitchToCollectionTab();
+                return;
             }
             else if (index == FunctionWorldChat) _functionView = FunctionViewWorldChat;
             else if (index == FunctionMod) _functionView = FunctionViewToggles;
